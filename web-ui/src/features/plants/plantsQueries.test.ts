@@ -27,14 +27,18 @@ import {
   pendingTimelineNotes,
   readonlyPlantPrefixPreview,
 } from "./plantsMutations";
-import { mapBootstrap, mapPlantDetail, mapPlantList } from "./plantsQueries";
+import {
+  mapBootstrap,
+  mapPlantDetail,
+  mapPlantList,
+  plantMetricHistoryQueryOptions,
+} from "./plantsQueries";
 import type { PlantRow, PlantSexTest } from "./plantsTypes";
 
 type HostedBootstrap = hostedComponents["schemas"]["BreedingLogbookBootstrapResponse"];
 type HostedPlantDetail =
   hostedComponents["schemas"]["BreedingLogbookPlantDetailResponse"];
 type HostedPlantList = hostedComponents["schemas"]["BreedingLogbookPlantListResponse"];
-type HostedMetricHistory = hostedComponents["schemas"]["PlantMetricHistoryResponse"];
 type HostedCommand = hostedComponents["schemas"]["CommandResponse"];
 
 describe("plants hosted response mapping", () => {
@@ -64,7 +68,7 @@ describe("plants hosted response mapping", () => {
     });
   });
 
-  it("maps plant detail timeline and metric history responses", () => {
+  it("maps plant detail timeline responses", () => {
     const plant = {
       id: "1",
       key: "SBBS-R1-001",
@@ -143,42 +147,6 @@ describe("plants hosted response mapping", () => {
       telemetry: [],
       wiki_content: null,
     } satisfies HostedPlantDetail;
-    const history = {
-      range: "24h",
-      bucket: "1h",
-      streams: [
-        {
-          metric: "substrate_temp_c",
-          display_name: "Substrate Temp",
-          display_unit: "°F",
-          source_unit: "degC",
-          value_precision: 1,
-          accent: "temp",
-          y_min: null,
-          y_max: null,
-          display_order: 10,
-          device_id: "plant-a-node",
-          capability_id: "substrate-temp",
-          points: [
-            {
-              bucket: "1h",
-              bucket_start_at: "2026-05-05T01:00:00Z",
-              bucket_end_at: "2026-05-05T02:00:00Z",
-              min: 68.1,
-              avg: 69.8,
-              max: 70.2,
-              source_min: 20.1,
-              source_avg: 21,
-              source_max: 21.2,
-              sample_count: 1,
-              source_unit: "degC",
-              display_unit: "°F",
-            },
-          ],
-        },
-      ],
-    } satisfies HostedMetricHistory;
-
     expect(mapPlantList(plants).plants[0]).toMatchObject({
       currentTentName: "Main flower",
       strain: "Sirius Black",
@@ -192,7 +160,7 @@ describe("plants hosted response mapping", () => {
         },
       ],
     });
-    expect(mapPlantDetail(detail, history)).toMatchObject({
+    expect(mapPlantDetail(detail)).toMatchObject({
       plant: {
         key: "SBBS-R1-001",
         lastNote: "Trichomes stacking",
@@ -200,14 +168,22 @@ describe("plants hosted response mapping", () => {
       },
       lineage: { offspring: "Cross #43: SBBS R1 #3 (1 plant)" },
       events: [{ id: "event-201", tag: "sex", body: "Confirmed female" }],
-      metricHistory: [
-        {
-          key: "temperature",
-          value: "69.8",
-          points: [69.8],
-        },
-      ],
     });
+  });
+
+  it("keys metric history by plant and range", () => {
+    expect(plantMetricHistoryQueryOptions("plant-a", "24h").queryKey).toEqual([
+      "plants",
+      "plant-a",
+      "metrics",
+      "24h",
+    ]);
+    expect(plantMetricHistoryQueryOptions("plant-a", "7d").queryKey).toEqual([
+      "plants",
+      "plant-a",
+      "metrics",
+      "7d",
+    ]);
   });
 });
 

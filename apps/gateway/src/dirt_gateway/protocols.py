@@ -29,6 +29,7 @@ from dirt_shared.cloud_contract import (
     WikiProjectionResponse,
 )
 from dirt_shared.config import CloudGatewayConfig
+from dirt_shared.metric_history import MetricHistoryBucket
 
 
 class CloudGatewayClient(Protocol):
@@ -96,7 +97,10 @@ class LocalGatewayServices(Protocol):
     async def collect_latest_metrics(self, site_id: str) -> LatestMetricsRequest: ...
 
     async def collect_rollups(
-        self, site_id: str, *, bucket_names: set[str] | None = None
+        self,
+        site_id: str,
+        *,
+        bucket_names: set[MetricHistoryBucket] | None = None,
     ) -> RollupsRequest: ...
 
     async def collect_wiki_pages(self, site_id: str) -> WikiProjectionRequest: ...

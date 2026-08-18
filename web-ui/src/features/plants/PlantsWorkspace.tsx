@@ -2,9 +2,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { alignHistoryPoints, historyTimestampAxis } from "@/shared/historySeries";
+import { formatMetricDisplayValue } from "@/shared/metricFormat";
 import { platform } from "@/shared/platform";
 import type { SeedLotSummary } from "@/shared/seedLots";
+import { HoverTimestamp } from "@/ui/HoverTimestamp";
 import { MarkdownDocument } from "@/ui/MarkdownDocument";
+import { RangeSwitch, type SparklineRange } from "@/ui/RangeSwitch";
 import { Sparkline } from "@/ui/Sparkline";
 import {
   activePendingCommandsForPlant,
@@ -37,7 +41,12 @@ import {
   useUpdatePlantFactsMutation,
   useUpdateSexTestMutation,
 } from "./plantsMutations";
-import { invalidatePlantsReads, usePlantsQueries } from "./plantsQueries";
+import {
+  invalidatePlantsReads,
+  type PlantMetricHistoryBucket,
+  type PlantMetricHistoryStream,
+  usePlantsQueries,
+} from "./plantsQueries";
 import type {
   BulkPanel,
   LocationOption,
@@ -45,12 +54,12 @@ import type {
   PlantGroupBy,
   PlantJournalEvent,
   PlantListLayout,
-  PlantMetricHistory,
   PlantRow,
   PlantSexKey,
   PlantSexTest,
   PlantStageKey,
   PlantsBootstrap,
+  PlantTelemetryReading,
 } from "./plantsTypes";
 
 type AddPlantMode = "germinate" | "clone";
@@ -488,6 +497,7 @@ function PlantsPage({
   const [noteText, setNoteText] = useState("");
   const [draggingPlantId, setDraggingPlantId] = useState<string | null>(null);
   const [tableSort, setTableSort] = useState<PlantTableSortState>(null);
+  const [detailHistoryRange, setDetailHistoryRange] = useState<SparklineRange>("24h");
 
   useEffect(() => {
     setView(pageViewFromMode(mode));
@@ -497,7 +507,7 @@ function PlantsPage({
     setBulkNotePlantKeys(null);
   }, [editMode, mode, plantKey]);
 
-  const logbook = usePlantsQueries(detailPlantKey);
+  const logbook = usePlantsQueries(detailPlantKey, detailHistoryRange);
   const pendingCommands = usePlantsPendingCommands();
   const germinateMutation = useGerminatePlantsMutation();
   const cloneMutation = useClonePlantsMutation();
@@ -972,6 +982,11 @@ function PlantsPage({
         ) : (
           <PlantJournalDetail
             detail={detail}
+            historyError={logbook.metricHistoryError}
+            historyBucket={logbook.metricHistory?.bucket ?? null}
+            historyLoading={logbook.metricHistoryLoading}
+            historyRange={detailHistoryRange}
+            metricHistory={logbook.metricHistory?.streams ?? []}
             factActionsDisabled={
               detailPlantHasPendingCommand || updatePlantFactsMutation.isPending
             }
@@ -1011,6 +1026,7 @@ function PlantsPage({
               setDetailFactsDraftPlantKey(null);
             }}
             onFactsDraftChange={setDetailFactsDraft}
+            onHistoryRangeChange={setDetailHistoryRange}
             onStartFactsEdit={() => {
               setDetailFactsDraft(detailFactsDraftFromPlant(detail.plant));
               setDetailFactsDraftPlantKey(detail.plant.key);
@@ -2896,15 +2912,21 @@ function PlantJournalDetail({
   factsEditing,
   factsMutationError,
   factsMutationPending,
+  historyBucket,
+  historyError,
+  historyLoading,
+  historyRange,
   maxEventDateTime,
   mutationError,
   mutationPending,
+  metricHistory,
   noteTargetCount,
   noteText,
   onBack,
   onCancelFactsEdit,
   onCreateSexTests,
   onFactsDraftChange,
+  onHistoryRangeChange,
   onLogNote,
   onNoteTextChange,
   onResultSexTests,
@@ -2923,15 +2945,21 @@ function PlantJournalDetail({
   factsEditing: boolean;
   factsMutationError: string | null;
   factsMutationPending: boolean;
+  historyBucket: PlantMetricHistoryBucket | null;
+  historyError: boolean;
+  historyLoading: boolean;
+  historyRange: SparklineRange;
   maxEventDateTime: string;
   mutationError: string | null;
   mutationPending: boolean;
+  metricHistory: readonly PlantMetricHistoryStream[];
   noteTargetCount: number;
   noteText: string;
   onBack: () => void;
   onCancelFactsEdit: () => void;
   onCreateSexTests: SexTestMutationSubmit<CreateSexTestsInput>;
   onFactsDraftChange: (draft: DetailFactsDraft) => void;
+  onHistoryRangeChange: (range: SparklineRange) => void;
   onLogNote: () => void;
   onNoteTextChange: (text: string) => void;
   onResultSexTests: SexTestMutationSubmit<ResultSexTestsInput>;
@@ -2944,7 +2972,15 @@ function PlantJournalDetail({
   sexTestMutationError: string | null;
   sexTestMutationPending: boolean;
 }): ReactNode {
-  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const [hoverTimestamp, setHoverTimestamp] = useState<string | null>(null);
+  const historyAxis = useMemo(
+    () =>
+      historyTimestampAxis(
+        metricHistory.map((metric) => metric.points),
+        historyBucket ?? undefined,
+      ),
+    [historyBucket, metricHistory],
+  );
   const sexTestWorkPanelRef = useRef<HTMLDivElement | null>(null);
   const [sexTestActionState, setSexTestActionState] = useState<{
     action: SexTestHistoryAction;
@@ -3102,9 +3138,12 @@ function PlantJournalDetail({
           </ol>
         </section>
         <aside className="bg-paper-2 p-4">
-          <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
-            Environment
-          </p>
+          <div className="flex items-baseline justify-between gap-2">
+            <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+              Environment
+            </p>
+            <HoverTimestamp timestamp={hoverTimestamp} />
+          </div>
           <h3 className="mt-1 font-sans text-fs-14 font-semibold text-ink">
             {formatPlantLocation(detail.plant)}
           </h3>
@@ -3112,37 +3151,43 @@ function PlantJournalDetail({
             {detail.telemetry.length} telemetry stream
             {detail.telemetry.length === 1 ? "" : "s"}
           </p>
-          <div className="mt-4 border border-rule bg-paper p-3">
-            <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
-              Substrate moisture
-            </p>
-            <p className="mt-1 font-mono text-fs-22 text-status-warn">
-              {detail.metricHistory.find((metric) => metric.key === "moisture")
-                ?.value ?? "0"}
-              %
-            </p>
-            <div className="mt-2 h-2 border border-rule bg-paper-3">
-              <div className="h-full w-2/5 bg-status-warn" />
-            </div>
+          <div className="mt-3">
+            <RangeSwitch
+              value={historyRange}
+              onChange={(nextRange) => {
+                setHoverTimestamp(null);
+                onHistoryRangeChange(nextRange);
+              }}
+            />
           </div>
-          <div className="mt-3 grid gap-px bg-rule">
-            {detail.metricHistory
-              .filter((metric) => metric.key !== "moisture")
-              .map((metric) => (
+          {historyLoading ? (
+            <PlantHistoryStatus label="Loading telemetry history…" />
+          ) : historyError ? (
+            <PlantHistoryStatus error label="Failed to load telemetry history." />
+          ) : metricHistory.length === 0 ? (
+            <PlantHistoryStatus label="No mapped telemetry history for this plant." />
+          ) : (
+            <div className="mt-3 grid gap-px bg-rule">
+              {metricHistory.map((metric) => (
                 <SparklineCard
-                  key={metric.key}
-                  hoverIndex={hoverIndex}
+                  key={plantMetricStreamKey(metric)}
+                  currentReading={
+                    detail.telemetry.find(
+                      (stream) =>
+                        stream.deviceId === metric.device_id &&
+                        stream.capabilityId === metric.capability_id &&
+                        stream.metric === metric.metric,
+                    )?.latestReading ?? null
+                  }
+                  historyAxis={historyAxis}
+                  historyBucket={historyBucket}
+                  hoverTimestamp={hoverTimestamp}
                   metric={metric}
-                  onHoverIndex={setHoverIndex}
+                  onHoverTimestamp={setHoverTimestamp}
                 />
               ))}
-          </div>
-          <button
-            type="button"
-            className="mt-4 w-full border border-dashed border-rule-strong px-3 py-3 font-mono text-fs-10 uppercase tracking-caps text-ink-3 transition hover:text-ink"
-          >
-            Attach RS485 probe
-          </button>
+            </div>
+          )}
         </aside>
       </section>
       {detail.wikiContent === null ? (
@@ -3917,35 +3962,83 @@ function TimelineEvent({ event }: { event: PlantJournalEvent }): ReactNode {
 }
 
 function SparklineCard({
-  hoverIndex,
+  currentReading,
+  historyAxis,
+  historyBucket,
+  hoverTimestamp,
   metric,
-  onHoverIndex,
+  onHoverTimestamp,
 }: {
-  hoverIndex: number | null;
-  metric: PlantMetricHistory;
-  onHoverIndex: (index: number | null) => void;
+  currentReading: PlantTelemetryReading | null;
+  historyAxis: readonly string[];
+  historyBucket: PlantMetricHistoryBucket | null;
+  hoverTimestamp: string | null;
+  metric: PlantMetricHistoryStream;
+  onHoverTimestamp: (timestamp: string | null) => void;
 }): ReactNode {
-  const points = metric.points.map((value, index) => ({
-    ts: `mock-${index}`,
-    value,
-  }));
+  const seriesId = plantMetricStreamKey(metric);
+  const series = useMemo(
+    () => [
+      {
+        color: metric.accent,
+        id: seriesId,
+        label: metric.display_name,
+        points: alignHistoryPoints(metric.points, historyAxis),
+      },
+    ],
+    [historyAxis, metric, seriesId],
+  );
+  const yProps = {
+    ...(metric.y_min === null ? {} : { yMin: metric.y_min }),
+    ...(metric.y_max === null ? {} : { yMax: metric.y_max }),
+  };
   return (
     <Sparkline
-      name={metric.label}
-      points={points}
-      unit={metric.unit}
-      accent={metricAccent(metric.key)}
-      valuePrecision={metric.key === "ec" || metric.key === "ph" ? 2 : 1}
-      hoverIndex={hoverIndex}
-      onHoverIndex={onHoverIndex}
+      {...(historyBucket === null ? {} : { bucket: historyBucket })}
+      name={metric.display_name}
+      series={series}
+      unit={metric.display_unit}
+      valuePrecision={metric.value_precision}
+      hoverTimestamp={hoverTimestamp}
+      onHoverTimestamp={onHoverTimestamp}
       summary={
         <p className="font-mono text-fs-12 text-ink">
-          {metric.value}
-          {metric.unit}
+          {currentReading === null
+            ? "No current reading"
+            : formatMetricDisplayValue(
+                currentReading.value,
+                metric.value_precision,
+                metric.display_unit,
+              )}
         </p>
       }
+      {...yProps}
     />
   );
+}
+
+function PlantHistoryStatus({
+  error = false,
+  label,
+}: {
+  error?: boolean;
+  label: string;
+}): ReactNode {
+  return (
+    <p
+      className={
+        error
+          ? "mt-3 border border-rule bg-paper p-3 font-mono text-fs-10 uppercase tracking-caps text-accent-magenta"
+          : "mt-3 border border-rule bg-paper p-3 font-mono text-fs-10 uppercase tracking-caps text-ink-3"
+      }
+    >
+      {label}
+    </p>
+  );
+}
+
+function plantMetricStreamKey(metric: PlantMetricHistoryStream): string {
+  return `${metric.device_id}:${metric.capability_id}:${metric.metric}`;
 }
 
 function SurfaceHeader({
@@ -4346,15 +4439,6 @@ function sexTextClass(sexKey: PlantSexKey): string {
   if (sexKey === "herm") return "text-status-warn";
   if (sexKey === "reversed") return "text-accent-purple";
   return "text-ink-3";
-}
-
-function metricAccent(
-  key: PlantMetricHistory["key"],
-): "temp" | "vpd" | "moisture" | "reservoir" {
-  if (key === "temperature") return "temp";
-  if (key === "ec") return "reservoir";
-  if (key === "ph") return "vpd";
-  return "moisture";
 }
 
 function shortDate(value: string): string {

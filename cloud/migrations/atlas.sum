@@ -1,4 +1,4 @@
-h1:hUKHmcb6cQg30RU4/L/d1A4C4MnbEnXEbp+j4/OGTcg=
+h1:s4Cq5i19YDZ6EsIoADL1bEVFfkwVcK6fX+i9ijOYd4k=
 20260505033411_cloud_control_plane_initial.sql h1:xKFBil06DkN6sXUbx1vStXik3y7cho6yZOOW41OsjEE=
 20260505045254_cloud_operational_hardening.sql h1:I7wpFkAA1D5caKbXIV7M5J5rfTslnsgGK0aUMeyT2wU=
 20260509041000_cloud_light_schedules.sql h1:We0s0BhwCAxHmZ/pf75EM+7uPGsk0a9RcFGvjwU5YA8=
@@ -27,3 +27,4 @@ h1:hUKHmcb6cQg30RU4/L/d1A4C4MnbEnXEbp+j4/OGTcg=
 20260620164340_create_plant_location_source_tent_index.sql h1:6SaB6CV0n9nFagSPk+p5mR/VfsVJ8AkqnHDiAzCVxnw=
 20260620234154_cloud_plant_clone_taken_at.sql h1:BIqgiVpOGZVL4uBeRcgb4cerX+0eV6IXGni821Oq5Lk=
 20260702001559_plant_sex_tests.sql h1:gmwd9pbH65OxSkELixY3PyVL3uDDk/9k39dybBFtXLE=
+20260818120000_exclude_substrate_from_generic_history.sql h1:HxgQ7rDrMrisG2Cd1YHe3jHYS4dhWRS8uj+ofFNds04=

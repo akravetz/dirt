@@ -30,9 +30,16 @@ describe("Sparkline", () => {
           name="Soil moisture"
           unit="raw"
           valuePrecision={0}
-          points={[{ ts: "2026-05-01T00:00:00Z", value: 1810 }]}
-          hoverIndex={0}
-          onHoverIndex={vi.fn()}
+          series={[
+            {
+              color: "moisture",
+              id: "soil-moisture",
+              label: "Soil moisture",
+              points: [{ ts: "2026-05-01T00:00:00Z", value: 1810 }],
+            },
+          ]}
+          hoverTimestamp="2026-05-01T00:00:00Z"
+          onHoverTimestamp={vi.fn()}
         />,
       );
     });
@@ -52,8 +59,7 @@ describe("Sparkline", () => {
       height: 40,
       toJSON: () => ({}),
     });
-    const onHoverIndex = vi.fn();
-    const onHoverPoint = vi.fn();
+    const onHoverTimestamp = vi.fn();
 
     container = document.createElement("div");
     document.body.append(container);
@@ -64,16 +70,22 @@ describe("Sparkline", () => {
         <Sparkline
           name="Dehumidifier"
           unit="%"
-          points={[
-            { ts: "2026-05-01T00:00:00Z", value: 0 },
-            { ts: "2026-05-01T04:00:00Z", value: null },
-            { ts: "2026-05-01T08:00:00Z", value: 50 },
-            { ts: "2026-05-01T12:00:00Z", value: null },
-            { ts: "2026-05-01T16:00:00Z", value: 100 },
+          series={[
+            {
+              color: "humidity",
+              id: "dehumidifier",
+              label: "Dehumidifier",
+              points: [
+                { ts: "2026-05-01T00:00:00Z", value: 0 },
+                { ts: "2026-05-01T04:00:00Z", value: null },
+                { ts: "2026-05-01T08:00:00Z", value: 50 },
+                { ts: "2026-05-01T12:00:00Z", value: null },
+                { ts: "2026-05-01T16:00:00Z", value: 100 },
+              ],
+            },
           ]}
-          hoverIndex={1}
-          onHoverIndex={onHoverIndex}
-          onHoverPoint={onHoverPoint}
+          hoverTimestamp="2026-05-01T04:00:00Z"
+          onHoverTimestamp={onHoverTimestamp}
           yMin={0}
           yMax={100}
         />,
@@ -100,10 +112,48 @@ describe("Sparkline", () => {
       );
     });
 
-    expect(onHoverIndex).toHaveBeenCalledWith(1);
-    expect(onHoverPoint).toHaveBeenCalledWith({
-      index: 1,
-      ts: "2026-05-01T04:00:00Z",
+    expect(onHoverTimestamp).toHaveBeenCalledWith("2026-05-01T04:00:00Z");
+  });
+
+  it("renders independently identified series and preserves zero in the tooltip", () => {
+    container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+
+    act(() => {
+      root?.render(
+        <Sparkline
+          name="Substrate EC"
+          unit="mS/cm"
+          valuePrecision={2}
+          series={[
+            {
+              color: "plant-a",
+              id: "plant-a-ec",
+              label: "Plant A",
+              points: [{ ts: "2026-05-01T00:00:00Z", value: 0 }],
+            },
+            {
+              color: "plant-b",
+              id: "plant-b-ec",
+              label: "Plant B",
+              points: [{ ts: "2026-05-01T00:00:00Z", value: 1.25 }],
+            },
+          ]}
+          hoverTimestamp="2026-05-01T00:00:00Z"
+          onHoverTimestamp={vi.fn()}
+        />,
+      );
     });
+
+    expect(container.querySelector("[aria-label='Series legend']")?.textContent).toBe(
+      "Plant APlant B",
+    );
+    expect(container.querySelector("[role='tooltip']")?.textContent).toBe(
+      "Plant A: 0.00mS/cmPlant B: 1.25mS/cm",
+    );
+    expect(container.querySelectorAll("g[aria-label='crosshair'] circle")).toHaveLength(
+      2,
+    );
   });
 });

@@ -22,7 +22,7 @@ from dirt_control.api.browser import (
     MetricHistoryResponse,
     MetricPresentationMetricResponse,
     MetricPresentationResponse,
-    PlantDetailResponse,
+    PlantMetricHistoryCollectionResponse,
     PlantMetricHistoryResponse,
     PlantSummaryResponse,
     SiteResponse,
@@ -71,9 +71,7 @@ def test_hosted_browser_routes_keep_response_models() -> None:
     assert routes[("GET", "/api/tents/{source_tent_id}/metrics/history")] is (
         MetricHistoryResponse
     )
-    assert routes[("GET", "/api/tents/{source_tent_id}/metrics/presentation")] is (
-        MetricPresentationResponse
-    )
+    assert routes[("GET", "/api/metrics/presentation")] is MetricPresentationResponse
     assert (
         routes[("GET", "/api/breeding-logbook/bootstrap")]
         is BreedingLogbookBootstrapResponse
@@ -133,12 +131,8 @@ def test_hosted_browser_routes_keep_response_models() -> None:
         == list[PlantSummaryResponse]
     )
     assert (
-        routes[("GET", "/api/tents/{source_tent_id}/plants/{plant_id}")]
-        is PlantDetailResponse
-    )
-    assert (
-        routes[("GET", "/api/tents/{source_tent_id}/plants/{plant_id}/metrics/history")]
-        is PlantMetricHistoryResponse
+        routes[("GET", "/api/tents/{source_tent_id}/plants/metrics/history")]
+        is PlantMetricHistoryCollectionResponse
     )
     assert (
         routes[("GET", "/api/tents/{source_tent_id}/devices")] == list[DeviceResponse]
@@ -264,6 +258,11 @@ def test_metric_presentation_metric_response_requires_owned_contract_shape() -> 
     with pytest.raises(ValidationError):
         MetricPresentationMetricResponse.model_validate(
             {**payload, "unexpected_unit": "%"}
+        )
+
+    with pytest.raises(ValidationError):
+        MetricPresentationMetricResponse.model_validate(
+            {**payload, "accent": "invented"}
         )
 
 

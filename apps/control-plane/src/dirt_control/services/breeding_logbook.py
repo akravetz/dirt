@@ -42,7 +42,6 @@ from dirt_control.api.browser_schemas.breeding_logbook import (
     BreedingUpdateSexTestRequest,
 )
 from dirt_control.api.browser_schemas.commands import CommandResponse
-from dirt_control.api.browser_schemas.metrics import METRIC_HISTORY_RANGES
 from dirt_control.api.browser_schemas.plants import (
     PlantMetricHistoryResponse,
     PlantMetricStreamResponse,
@@ -63,13 +62,7 @@ from dirt_control.services.browser_commands import (
 )
 from dirt_control.services.browser_plants import (
     PlantProjection,
-    active_plant_metric_streams,
     active_plant_stream_counts,
-    latest_metrics_by_stream,
-    metric_rollups_by_stream,
-    metric_stream_key,
-    plant_metric_history_stream_response,
-    plant_metric_stream_responses,
 )
 from dirt_control.services.browser_tents import (
     cloud_tents_by_source_id,
@@ -77,6 +70,14 @@ from dirt_control.services.browser_tents import (
     location_tent_name,
     required_location_source_tent_id,
     required_source_tent_id,
+)
+from dirt_control.services.plant_metrics import (
+    active_plant_metric_streams,
+    latest_metrics_by_stream,
+    load_mapped_plant_histories,
+    mapped_plant_history_target,
+    plant_metric_history_response,
+    plant_metric_stream_responses,
 )
 from dirt_control.settings import CloudSettings
 from dirt_shared.cloud_contract import (
@@ -94,6 +95,7 @@ from dirt_shared.cloud_contract import (
     BreedingUpdateSeedLotInventoryPayload,
     BreedingUpdateSexTestPayload,
 )
+from dirt_shared.metric_history import MetricHistoryRange
 
 
 @dataclass(frozen=True)
@@ -298,45 +300,24 @@ async def plant_metric_history(
     *,
     site_id: str,
     plant_key: str,
-    range_key: str,
+    range_key: MetricHistoryRange,
     now: datetime,
 ) -> PlantMetricHistoryResponse:
-    range_spec = METRIC_HISTORY_RANGES.get(range_key)
-    if range_spec is None:
-        raise HTTPException(status_code=400, detail="invalid range")
     plant = await get_breeding_logbook_plant(
         session,
         site_id=site_id,
         plant_key=plant_key,
     )
-    stream_rows = [
-        row
-        for row in await active_plant_metric_streams(
-            session,
-            site_id=site_id,
-            plant=plant_projection_from_breeding_logbook(plant),
-        )
-        if row.presentation is not None and row.presentation.history_enabled
-    ]
-    bucket, window = range_spec
-    history_by_stream = await metric_rollups_by_stream(
+    result = await load_mapped_plant_histories(
         session,
         site_id=site_id,
-        source_tent_id=required_location_source_tent_id(plant.location),
-        bucket=bucket,
-        cutoff=now - window,
-        streams=[row.stream for row in stream_rows],
+        plants=[mapped_plant_history_target(plant.plant, plant.location)],
+        range_key=range_key,
+        now=now,
     )
-    return PlantMetricHistoryResponse(
-        range=range_key,
-        bucket=bucket,
-        streams=[
-            plant_metric_history_stream_response(
-                row,
-                history_by_stream.get(metric_stream_key(row.stream), []),
-            )
-            for row in stream_rows
-        ],
+    return plant_metric_history_response(
+        result,
+        source_plant_id=plant.plant.source_plant_id,
     )
 
 
@@ -355,7 +336,7 @@ async def plant_detail(
     stream_rows = await active_plant_metric_streams(
         session,
         site_id=site_id,
-        plant=plant_projection_from_breeding_logbook(plant),
+        source_plant_ids={plant.plant.source_plant_id},
     )
     latest_by_stream = await latest_metrics_by_stream(
         session,

@@ -87,21 +87,6 @@ export type PlantRow = {
   sexTests: readonly PlantSexTest[];
 };
 
-export type PlantMetricSummary = {
-  label: string;
-  value: string;
-  tone: "ok" | "warn";
-};
-
-export type PlantMetricHistory = {
-  key: "moisture" | "ec" | "ph" | "temperature";
-  label: string;
-  value: string;
-  unit: string;
-  tone: "ok" | "warn";
-  points: readonly number[];
-};
-
 export type PlantTelemetryReading = {
   receivedAt: string;
   value: number;
@@ -142,8 +127,6 @@ export type PlantDetail = {
     parents: string;
     offspring: string;
   };
-  metrics: readonly PlantMetricSummary[];
-  metricHistory: readonly PlantMetricHistory[];
   telemetry: readonly PlantTelemetryStream[];
   wikiContent: PlantWikiContent | null;
   events: readonly PlantJournalEvent[];

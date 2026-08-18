@@ -1,4 +1,4 @@
-h1:ARyRf/dd8t9F/BLJvK9TdUFc+EM9q8HwONUuqFYmcAU=
+h1:hYd1Q3OcqawXB0Gq++Yx4hvRyzv4JFdC8FaIkuX5Cbc=
 20260420003127_init.sql h1:GzLCe8kSX0b0TzsHZJNidBWSoeYe83HgnHXdkhGi1Ko=
 20260423180901_add_growstate_timezone.sql h1:hwtimWMWdMD8iw7GuYOMazB5dHSq40fKOSbUFDFPg0s=
 20260428003304_add_govee_sensor_source.sql h1:l7vbhthRMWFQVcLwvX+yhzrzLD0Tcp33QrLpmU4F7jQ=
@@ -51,3 +51,4 @@ h1:ARyRf/dd8t9F/BLJvK9TdUFc+EM9q8HwONUuqFYmcAU=
 20260619045533_scoped_identity_cleanup.sql h1:Pfb0NvhXitHtlzrncz5ITej2mS6gifxnw4HId225HKA=
 20260620234153_plant_clone_taken_at.sql h1:WD0FWj/GPxIk3QMWYDE93YftzD6NkYvtRhfbme2pIQU=
 20260701235933_plant_sex_tests.sql h1:caAdt4PknBmVIMu8PdJtZ3SXM0zP787rMbDzVkXYjnk=
+20260818120000_exclude_substrate_from_generic_history.sql h1:2eoPHWXeWSefJNWBbjOqFYQIDhhkugdA4sT+/tYGy7M=

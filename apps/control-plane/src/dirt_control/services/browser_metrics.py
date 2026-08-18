@@ -1,29 +1,27 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import cast
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirt_control.api.browser_schemas.metrics import (
-    DISPLAY_UNITS_BY_METRIC,
-    METRIC_HISTORY_RANGES,
-    SOURCE_UNITS_BY_METRIC,
     CurrentMetricResponse,
     MetricHistoryPointResponse,
     MetricHistoryResponse,
     MetricPresentationHistoryGroupResponse,
     MetricPresentationMetricResponse,
-    MetricPresentationRangeResponse,
     MetricPresentationResponse,
-    MetricStreamKey,
 )
 from dirt_control.models import (
     CloudLatestMetric,
     CloudMetricPresentation,
     CloudMetricRollup,
 )
+from dirt_control.services.metric_rollups import require_consistent_metric_unit
+from dirt_shared.metric_history import MetricHistoryRange, metric_history_range_spec
 
 
 async def current_metrics(
@@ -59,18 +57,24 @@ async def metric_presentation(session: AsyncSession) -> MetricPresentationRespon
         .scalars()
         .all()
     )
-    history_rows = sorted(
-        (row for row in rows if row.history_enabled),
-        key=lambda row: (
-            row.dashboard_group_order if row.dashboard_group_order is not None else 0,
-            row.display_order,
-            row.metric,
-        ),
+    history_rows: list[tuple[CloudMetricPresentation, tuple[str, str, int]]] = []
+    for row in rows:
+        if not row.history_enabled:
+            continue
+        group_parts = history_group_parts(row)
+        if group_parts is not None:
+            history_rows.append((row, group_parts))
+    history_rows.sort(
+        key=lambda item: (
+            item[1][2],
+            item[0].display_order,
+            item[0].metric,
+        )
     )
     history_groups: list[MetricPresentationHistoryGroupResponse] = []
     history_groups_by_key: dict[str, MetricPresentationHistoryGroupResponse] = {}
-    for row in history_rows:
-        group_key, group_label, group_order = history_group_parts(row)
+    for row, group_parts in history_rows:
+        group_key, group_label, group_order = group_parts
         existing_group = history_groups_by_key.get(group_key)
         if existing_group is None:
             existing_group = MetricPresentationHistoryGroupResponse(
@@ -88,7 +92,6 @@ async def metric_presentation(session: AsyncSession) -> MetricPresentationRespon
             presentation_metric_response(row) for row in rows if row.current_enabled
         ],
         history_groups=history_groups,
-        supported_ranges=supported_metric_ranges_response(),
     )
 
 
@@ -98,32 +101,42 @@ async def metric_history(  # noqa: PLR0913
     site_id: str,
     source_tent_id: int,
     metric: str,
-    range_key: str,
-    device_id: str | None,
-    capability_id: str | None,
+    range_key: MetricHistoryRange,
     now: datetime,
 ) -> MetricHistoryResponse:
-    range_spec = METRIC_HISTORY_RANGES.get(range_key)
-    if range_spec is None:
-        raise HTTPException(status_code=400, detail="invalid range")
-    if (device_id is None) != (capability_id is None):
-        raise HTTPException(
-            status_code=400,
-            detail="device_id and capability_id must be supplied together",
-        )
-    bucket, window = range_spec
+    bucket, window = metric_history_range_spec(range_key)
     cutoff = now - window
-    stream_filters = (
-        (
-            CloudMetricRollup.device_id == device_id,
-            CloudMetricRollup.capability_id == capability_id,
-        )
-        if device_id is not None and capability_id is not None
-        else ()
+    has_weighted_value = and_(
+        CloudMetricRollup.avg_value.is_not(None),
+        CloudMetricRollup.sample_count > 0,
     )
     rows = (
         await session.execute(
-            select(CloudMetricRollup)
+            select(
+                CloudMetricRollup.bucket,
+                CloudMetricRollup.bucket_start_at,
+                func.max(CloudMetricRollup.bucket_end_at).label("bucket_end_at"),
+                func.min(CloudMetricRollup.min_value).label("min_value"),
+                func.sum(
+                    case(
+                        (
+                            has_weighted_value,
+                            CloudMetricRollup.avg_value
+                            * CloudMetricRollup.sample_count,
+                        ),
+                        else_=0.0,
+                    )
+                ).label("weighted_sum"),
+                func.sum(
+                    case(
+                        (has_weighted_value, CloudMetricRollup.sample_count),
+                        else_=0,
+                    )
+                ).label("weighted_sample_count"),
+                func.max(CloudMetricRollup.max_value).label("max_value"),
+                func.sum(CloudMetricRollup.sample_count).label("sample_count"),
+                CloudMetricRollup.unit,
+            )
             .where(
                 CloudMetricRollup.site_id == site_id,
                 CloudMetricRollup.source_tent_id == source_tent_id,
@@ -131,10 +144,15 @@ async def metric_history(  # noqa: PLR0913
                 CloudMetricRollup.bucket == bucket,
                 CloudMetricRollup.bucket_start_at >= cutoff,
             )
-            .where(*stream_filters)
+            .group_by(
+                CloudMetricRollup.bucket,
+                CloudMetricRollup.bucket_start_at,
+                CloudMetricRollup.unit,
+            )
             .order_by(CloudMetricRollup.bucket_start_at)
         )
-    ).scalars()
+    ).all()
+    require_consistent_metric_unit((row.unit for row in rows), metric=metric)
     return MetricHistoryResponse(
         metric=metric,
         range=range_key,
@@ -144,7 +162,11 @@ async def metric_history(  # noqa: PLR0913
                 bucket_start_at=row.bucket_start_at,
                 bucket_end_at=row.bucket_end_at,
                 min=row.min_value,
-                avg=row.avg_value,
+                avg=(
+                    row.weighted_sum / row.weighted_sample_count
+                    if row.weighted_sample_count
+                    else None
+                ),
                 max=row.max_value,
                 sample_count=row.sample_count,
                 unit=row.unit,
@@ -182,75 +204,20 @@ def presentation_metric_response(
     )
 
 
-def supported_metric_ranges_response() -> list[MetricPresentationRangeResponse]:
-    return [
-        MetricPresentationRangeResponse(range=range_key, bucket=bucket)
-        for range_key, (bucket, _) in METRIC_HISTORY_RANGES.items()
-    ]
-
-
-def history_group_parts(row: CloudMetricPresentation) -> tuple[str, str, int]:
-    if (
-        row.dashboard_group is None
-        or row.dashboard_group_label is None
-        or row.dashboard_group_order is None
-    ):
+def history_group_parts(
+    row: CloudMetricPresentation,
+) -> tuple[str, str, int] | None:
+    parts = (
+        row.dashboard_group,
+        row.dashboard_group_label,
+        row.dashboard_group_order,
+    )
+    if all(part is None for part in parts):
+        return None
+    if any(part is None for part in parts):
         raise HTTPException(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
-            "history metric presentation row missing dashboard group",
+            "history metric presentation row has a partial dashboard group",
         )
-    return row.dashboard_group, row.dashboard_group_label, row.dashboard_group_order
-
-
-def metric_stream_filter_values(
-    stream_keys: set[MetricStreamKey],
-) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
-    return (
-        tuple({device_id for device_id, _, _ in stream_keys}),
-        tuple({capability_id for _, capability_id, _ in stream_keys}),
-        tuple({metric for _, _, metric in stream_keys}),
-    )
-
-
-def display_metric_value(metric: str, value: float) -> float:
-    if metric == "substrate_temp_c":
-        return value * 9 / 5 + 32
-    if metric == "substrate_ec_us_cm":
-        return value / 1000
-    return value
-
-
-def display_optional_metric_value(metric: str, value: float | None) -> float | None:
-    if value is None:
-        return None
-    return display_metric_value(metric, value)
-
-
-def source_unit_for_metric(metric: str, source_unit: str | None) -> str | None:
-    return source_unit or SOURCE_UNITS_BY_METRIC.get(metric)
-
-
-def display_unit_for_metric(
-    metric: str,
-    presentation: CloudMetricPresentation | None,
-    source_unit: str | None,
-) -> str:
-    if presentation is not None:
-        return presentation.unit
-    return DISPLAY_UNITS_BY_METRIC.get(metric) or source_unit or ""
-
-
-def display_name_for_metric(
-    metric: str, presentation: CloudMetricPresentation | None
-) -> str:
-    if presentation is not None:
-        return presentation.display_name
-    return metric.replace("_", " ").title()
-
-
-def value_precision_for_metric(presentation: CloudMetricPresentation | None) -> int:
-    return presentation.value_precision if presentation is not None else 1
-
-
-def accent_for_metric(presentation: CloudMetricPresentation | None) -> str:
-    return presentation.accent if presentation is not None else "neutral"
+    group, label, order = parts
+    return cast(str, group), cast(str, label), cast(int, order)

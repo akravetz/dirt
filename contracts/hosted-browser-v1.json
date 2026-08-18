@@ -5853,6 +5853,12 @@
             "title": "Avg"
           },
           "bucket": {
+            "enum": [
+              "5m",
+              "1h",
+              "4h",
+              "1d"
+            ],
             "title": "Bucket",
             "type": "string"
           },
@@ -5932,6 +5938,13 @@
             "type": "array"
           },
           "range": {
+            "enum": [
+              "1h",
+              "24h",
+              "7d",
+              "30d",
+              "90d"
+            ],
             "title": "Range",
             "type": "string"
           }
@@ -5980,6 +5993,14 @@
         "additionalProperties": false,
         "properties": {
           "accent": {
+            "enum": [
+              "temp",
+              "humidity",
+              "vpd",
+              "neutral",
+              "reservoir",
+              "moisture"
+            ],
             "title": "Accent",
             "type": "string"
           },
@@ -6039,25 +6060,6 @@
         "title": "MetricPresentationMetricResponse",
         "type": "object"
       },
-      "MetricPresentationRangeResponse": {
-        "additionalProperties": false,
-        "properties": {
-          "bucket": {
-            "title": "Bucket",
-            "type": "string"
-          },
-          "range": {
-            "title": "Range",
-            "type": "string"
-          }
-        },
-        "required": [
-          "range",
-          "bucket"
-        ],
-        "title": "MetricPresentationRangeResponse",
-        "type": "object"
-      },
       "MetricPresentationResponse": {
         "additionalProperties": false,
         "properties": {
@@ -6074,390 +6076,13 @@
             },
             "title": "History Groups",
             "type": "array"
-          },
-          "supported_ranges": {
-            "items": {
-              "$ref": "#/components/schemas/MetricPresentationRangeResponse"
-            },
-            "title": "Supported Ranges",
-            "type": "array"
           }
         },
         "required": [
           "current_metrics",
-          "history_groups",
-          "supported_ranges"
+          "history_groups"
         ],
         "title": "MetricPresentationResponse",
-        "type": "object"
-      },
-      "PlantCurrentLocationResponse": {
-        "additionalProperties": false,
-        "properties": {
-          "current_tent_id": {
-            "title": "Current Tent Id",
-            "type": "integer"
-          },
-          "current_tent_name": {
-            "title": "Current Tent Name",
-            "type": "string"
-          },
-          "end_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "End At"
-          },
-          "grid_position": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Grid Position"
-          },
-          "id": {
-            "title": "Id",
-            "type": "integer"
-          },
-          "start_at": {
-            "format": "date-time",
-            "title": "Start At",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "current_tent_id",
-          "current_tent_name",
-          "grid_position",
-          "start_at",
-          "end_at"
-        ],
-        "title": "PlantCurrentLocationResponse",
-        "type": "object"
-      },
-      "PlantDetailResponse": {
-        "additionalProperties": false,
-        "properties": {
-          "culled_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Culled At"
-          },
-          "culled_reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Culled Reason"
-          },
-          "current_location": {
-            "$ref": "#/components/schemas/PlantCurrentLocationResponse"
-          },
-          "current_tent_id": {
-            "title": "Current Tent Id",
-            "type": "integer"
-          },
-          "current_tent_name": {
-            "title": "Current Tent Name",
-            "type": "string"
-          },
-          "events": {
-            "items": {
-              "$ref": "#/components/schemas/PlantEventResponse"
-            },
-            "title": "Events",
-            "type": "array"
-          },
-          "flower_started_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Flower Started At"
-          },
-          "germinated_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Germinated At"
-          },
-          "grid_position": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Grid Position"
-          },
-          "harvested_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Harvested At"
-          },
-          "id": {
-            "title": "Id",
-            "type": "integer"
-          },
-          "is_active": {
-            "title": "Is Active",
-            "type": "boolean"
-          },
-          "key": {
-            "title": "Key",
-            "type": "string"
-          },
-          "line": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/PlantLineResponse"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "line_source_id": {
-            "title": "Line Source Id",
-            "type": "integer"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "notes": {
-            "items": {
-              "$ref": "#/components/schemas/PlantNoteResponse"
-            },
-            "title": "Notes",
-            "type": "array"
-          },
-          "rooted_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Rooted At"
-          },
-          "selected_for_breeding_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Selected For Breeding At"
-          },
-          "selected_for_breeding_reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Selected For Breeding Reason"
-          },
-          "sex_key": {
-            "enum": [
-              "unknown",
-              "male",
-              "female",
-              "herm",
-              "reversed"
-            ],
-            "title": "Sex Key",
-            "type": "string"
-          },
-          "site_id": {
-            "title": "Site Id",
-            "type": "string"
-          },
-          "taken_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Taken At"
-          },
-          "telemetry": {
-            "items": {
-              "$ref": "#/components/schemas/PlantMetricStreamResponse"
-            },
-            "title": "Telemetry",
-            "type": "array"
-          },
-          "telemetry_stream_count": {
-            "title": "Telemetry Stream Count",
-            "type": "integer"
-          },
-          "veg_started_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Veg Started At"
-          },
-          "wiki_content": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/PlantWikiContentResponse"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "required": [
-          "site_id",
-          "current_tent_id",
-          "current_tent_name",
-          "id",
-          "key",
-          "line_source_id",
-          "line",
-          "sex_key",
-          "name",
-          "grid_position",
-          "current_location",
-          "germinated_at",
-          "taken_at",
-          "rooted_at",
-          "veg_started_at",
-          "flower_started_at",
-          "culled_at",
-          "culled_reason",
-          "harvested_at",
-          "selected_for_breeding_at",
-          "selected_for_breeding_reason",
-          "is_active",
-          "telemetry_stream_count",
-          "telemetry",
-          "notes",
-          "events",
-          "wiki_content"
-        ],
-        "title": "PlantDetailResponse",
-        "type": "object"
-      },
-      "PlantEventResponse": {
-        "additionalProperties": false,
-        "properties": {
-          "id": {
-            "title": "Id",
-            "type": "integer"
-          },
-          "kinds": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Kinds",
-            "type": "array"
-          },
-          "metadata": {
-            "additionalProperties": true,
-            "title": "Metadata",
-            "type": "object"
-          },
-          "notes": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Notes"
-          },
-          "occurred_at": {
-            "format": "date-time",
-            "title": "Occurred At",
-            "type": "string"
-          },
-          "reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reason"
-          }
-        },
-        "required": [
-          "id",
-          "occurred_at",
-          "kinds",
-          "reason",
-          "notes",
-          "metadata"
-        ],
-        "title": "PlantEventResponse",
         "type": "object"
       },
       "PlantLineResponse": {
@@ -6520,98 +6145,50 @@
         "title": "PlantLineResponse",
         "type": "object"
       },
-      "PlantMetricHistoryPointResponse": {
+      "PlantMetricHistoryCollectionResponse": {
         "additionalProperties": false,
         "properties": {
-          "avg": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Avg"
-          },
           "bucket": {
+            "enum": [
+              "5m",
+              "1h",
+              "4h",
+              "1d"
+            ],
             "title": "Bucket",
             "type": "string"
           },
-          "bucket_end_at": {
-            "format": "date-time",
-            "title": "Bucket End At",
+          "plants": {
+            "items": {
+              "$ref": "#/components/schemas/PlantMetricHistoryPlantResponse"
+            },
+            "title": "Plants",
+            "type": "array"
+          },
+          "range": {
+            "enum": [
+              "1h",
+              "24h",
+              "7d",
+              "30d",
+              "90d"
+            ],
+            "title": "Range",
             "type": "string"
-          },
-          "bucket_start_at": {
-            "format": "date-time",
-            "title": "Bucket Start At",
-            "type": "string"
-          },
-          "display_unit": {
-            "title": "Display Unit",
-            "type": "string"
-          },
-          "max": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Max"
-          },
-          "min": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Min"
-          },
-          "sample_count": {
-            "title": "Sample Count",
-            "type": "integer"
-          },
-          "source_avg": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source Avg"
-          },
-          "source_max": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source Max"
-          },
-          "source_min": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source Min"
-          },
-          "source_unit": {
+          }
+        },
+        "required": [
+          "range",
+          "bucket",
+          "plants"
+        ],
+        "title": "PlantMetricHistoryCollectionResponse",
+        "type": "object"
+      },
+      "PlantMetricHistoryPlantResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "grid_position": {
             "anyOf": [
               {
                 "type": "string"
@@ -6620,22 +6197,61 @@
                 "type": "null"
               }
             ],
-            "title": "Source Unit"
+            "title": "Grid Position"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "streams": {
+            "items": {
+              "$ref": "#/components/schemas/PlantMetricHistoryStreamResponse"
+            },
+            "title": "Streams",
+            "type": "array"
           }
         },
         "required": [
-          "bucket",
-          "bucket_start_at",
-          "bucket_end_at",
-          "min",
-          "avg",
-          "max",
-          "source_min",
-          "source_avg",
-          "source_max",
-          "sample_count",
-          "source_unit",
-          "display_unit"
+          "id",
+          "key",
+          "name",
+          "grid_position",
+          "streams"
+        ],
+        "title": "PlantMetricHistoryPlantResponse",
+        "type": "object"
+      },
+      "PlantMetricHistoryPointResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "ts",
+          "value"
         ],
         "title": "PlantMetricHistoryPointResponse",
         "type": "object"
@@ -6644,10 +6260,23 @@
         "additionalProperties": false,
         "properties": {
           "bucket": {
+            "enum": [
+              "5m",
+              "1h",
+              "4h",
+              "1d"
+            ],
             "title": "Bucket",
             "type": "string"
           },
           "range": {
+            "enum": [
+              "1h",
+              "24h",
+              "7d",
+              "30d",
+              "90d"
+            ],
             "title": "Range",
             "type": "string"
           },
@@ -6671,6 +6300,14 @@
         "additionalProperties": false,
         "properties": {
           "accent": {
+            "enum": [
+              "temp",
+              "humidity",
+              "vpd",
+              "neutral",
+              "reservoir",
+              "moisture"
+            ],
             "title": "Accent",
             "type": "string"
           },
@@ -6827,6 +6464,14 @@
         "additionalProperties": false,
         "properties": {
           "accent": {
+            "enum": [
+              "temp",
+              "humidity",
+              "vpd",
+              "neutral",
+              "reservoir",
+              "moisture"
+            ],
             "title": "Accent",
             "type": "string"
           },
@@ -6922,43 +6567,6 @@
           "latest_reading"
         ],
         "title": "PlantMetricStreamResponse",
-        "type": "object"
-      },
-      "PlantNoteResponse": {
-        "additionalProperties": false,
-        "properties": {
-          "body": {
-            "title": "Body",
-            "type": "string"
-          },
-          "created_by": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Created By"
-          },
-          "id": {
-            "title": "Id",
-            "type": "integer"
-          },
-          "observed_at": {
-            "format": "date-time",
-            "title": "Observed At",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "observed_at",
-          "body",
-          "created_by"
-        ],
-        "title": "PlantNoteResponse",
         "type": "object"
       },
       "PlantSummaryResponse": {
@@ -7330,6 +6938,12 @@
             "title": "Avg Value"
           },
           "bucket": {
+            "enum": [
+              "5m",
+              "1h",
+              "4h",
+              "1d"
+            ],
             "title": "Bucket",
             "type": "string"
           },
@@ -8210,6 +7824,13 @@
             "required": false,
             "schema": {
               "default": "24h",
+              "enum": [
+                "1h",
+                "24h",
+                "7d",
+                "30d",
+                "90d"
+              ],
               "title": "Range",
               "type": "string"
             }
@@ -9128,6 +8749,24 @@
         "summary": "Health"
       }
     },
+    "/api/metrics/presentation": {
+      "get": {
+        "operationId": "metric_presentation_api_metrics_presentation_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetricPresentationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Metric Presentation"
+      }
+    },
     "/api/sites": {
       "get": {
         "operationId": "sites_api_sites_get",
@@ -9410,42 +9049,17 @@
           },
           {
             "in": "query",
-            "name": "device_id",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Device Id"
-            }
-          },
-          {
-            "in": "query",
-            "name": "capability_id",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Capability Id"
-            }
-          },
-          {
-            "in": "query",
             "name": "range",
             "required": false,
             "schema": {
               "default": "24h",
+              "enum": [
+                "1h",
+                "24h",
+                "7d",
+                "30d",
+                "90d"
+              ],
               "title": "Range",
               "type": "string"
             }
@@ -9474,45 +9088,6 @@
           }
         },
         "summary": "Metric History"
-      }
-    },
-    "/api/tents/{source_tent_id}/metrics/presentation": {
-      "get": {
-        "operationId": "metric_presentation_api_tents__source_tent_id__metrics_presentation_get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "source_tent_id",
-            "required": true,
-            "schema": {
-              "title": "Source Tent Id",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MetricPresentationResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Metric Presentation"
       }
     },
     "/api/tents/{source_tent_id}/plants": {
@@ -9558,9 +9133,9 @@
         "summary": "Plants"
       }
     },
-    "/api/tents/{source_tent_id}/plants/{plant_id}": {
+    "/api/tents/{source_tent_id}/plants/metrics/history": {
       "get": {
-        "operationId": "plant_detail_api_tents__source_tent_id__plants__plant_id__get",
+        "operationId": "plant_metric_history_collection_api_tents__source_tent_id__plants_metrics_history_get",
         "parameters": [
           {
             "in": "path",
@@ -9569,63 +9144,6 @@
             "schema": {
               "title": "Source Tent Id",
               "type": "integer"
-            }
-          },
-          {
-            "in": "path",
-            "name": "plant_id",
-            "required": true,
-            "schema": {
-              "title": "Plant Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PlantDetailResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Plant Detail"
-      }
-    },
-    "/api/tents/{source_tent_id}/plants/{plant_id}/metrics/history": {
-      "get": {
-        "operationId": "plant_metric_history_api_tents__source_tent_id__plants__plant_id__metrics_history_get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "source_tent_id",
-            "required": true,
-            "schema": {
-              "title": "Source Tent Id",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "path",
-            "name": "plant_id",
-            "required": true,
-            "schema": {
-              "title": "Plant Id",
-              "type": "string"
             }
           },
           {
@@ -9634,6 +9152,13 @@
             "required": false,
             "schema": {
               "default": "24h",
+              "enum": [
+                "1h",
+                "24h",
+                "7d",
+                "30d",
+                "90d"
+              ],
               "title": "Range",
               "type": "string"
             }
@@ -9644,7 +9169,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PlantMetricHistoryResponse"
+                  "$ref": "#/components/schemas/PlantMetricHistoryCollectionResponse"
                 }
               }
             },
@@ -9661,7 +9186,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Plant Metric History"
+        "summary": "Plant Metric History Collection"
       }
     },
     "/api/tents/{source_tent_id}/state": {

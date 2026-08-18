@@ -22,7 +22,7 @@ from dirt_control.api.browser_schemas.metrics import (
     MetricPresentationResponse,
 )
 from dirt_control.api.browser_schemas.plants import (
-    PlantDetailResponse,
+    PlantMetricHistoryCollectionResponse,
     PlantMetricHistoryResponse,
     PlantSummaryResponse,
 )
@@ -76,7 +76,7 @@ __all__ = [
     "MetricHistoryResponse",
     "MetricPresentationMetricResponse",
     "MetricPresentationResponse",
-    "PlantDetailResponse",
+    "PlantMetricHistoryCollectionResponse",
     "PlantMetricHistoryResponse",
     "PlantSummaryResponse",
     "SiteResponse",

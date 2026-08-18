@@ -22,6 +22,7 @@
 // No data-testid, no sr-only mirrors. The markers above are all
 // idiomatic ARIA surfaces that double as screen-reader affordances.
 import type { ReactNode } from "react";
+import type { SensorAccent } from "@/shared/metricPresentation";
 
 // Band status enum from the backend contract
 // (components.schemas.BandStatus). Duck-typed here so this ui/ module
@@ -29,8 +30,6 @@ import type { ReactNode } from "react";
 // api-client/, and a one-line literal union is cheaper than routing a
 // shared type through src/shared/.
 type GaugeStatus = "ok" | "warn" | "crit";
-type GaugeAccent = "temp" | "humidity" | "vpd" | "moisture" | "reservoir" | "neutral";
-
 interface GaugeProps {
   /** Metric display name; also the tile's accessible name + heading text. */
   name: string;
@@ -43,7 +42,7 @@ interface GaugeProps {
   /** Backend-computed status. Drives the status-word colour. */
   status: GaugeStatus;
   /** Sensor accent (drives band-arc stroke). */
-  accent?: GaugeAccent;
+  accent?: SensorAccent;
   /**
    * Optional value formatter; defaults to one decimal place. Useful for
    * integer-valued metrics like fan_pct where "48.0%" reads awkward.
@@ -60,7 +59,7 @@ const STATUS_TEXT: Record<GaugeStatus, string> = {
   crit: "text-status-err",
 };
 
-const ACCENT_STROKE: Record<GaugeAccent, string> = {
+const ACCENT_STROKE: Record<SensorAccent, string> = {
   temp: "stroke-sensor-temp",
   humidity: "stroke-sensor-humidity",
   vpd: "stroke-sensor-vpd",
@@ -85,7 +84,7 @@ function Arc({
 }: {
   band: readonly [number, number];
   value: number;
-  accent: GaugeAccent;
+  accent: SensorAccent;
 }): ReactNode {
   const [lo, hi] = band;
   // Map the band onto [0, 1] of the arc by expanding the display

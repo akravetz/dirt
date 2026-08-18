@@ -1,322 +1,362 @@
-// Single history tile for the dashboard history grid.
-//
-// Fetching metric history is delegated to the parent; this component
-// is purely presentational and renders:
-//   - a translucent area fill under the line + the polyline itself, split
-//     into segments where the series has explicit missing buckets
-//   - a shared crosshair: a dashed vertical line + data-point dot at the
-//     `hoverIndex` supplied by the parent (null → no crosshair)
-//   - an accessible tooltip (role="tooltip") showing value + unit when a
-//     point is hovered, positioned horizontally over the hovered bucket
-//
-// Styling is ported from debug/webapp.zip/components/dashboard.{jsx,css}:
-// a ◆ glyph + mixed-case label (not an uppercase eyebrow), no right-
-// aligned unit chip. The unit still threads through to the tooltip.
-//
-// Accessibility contract the e2e spec relies on:
-//   - <article aria-label={`${name} sparkline`}>  — one per metric, so
-//     getByRole("article", { name: /temperature sparkline/i }) resolves.
-//   - <svg aria-label="sparkline" role="img">     — the chart surface
-//     the test pointer-hovers on.
-//   - <svg aria-label="crosshair">                — rendered only when
-//     hoverIndex !== null.
-//   - role="tooltip" element                       — visible when
-//     hoverIndex !== null; textContent includes the formatted value and
-//     the unit string so the e2e can assert per-metric unit suffixes.
-import type { ReactNode } from "react";
-import { formatMetricValue } from "@/shared/metricFormat";
+import { type PointerEvent, type ReactNode, useMemo } from "react";
+import {
+  alignHistoryPoints,
+  type HistoryBucket,
+  type HistoryPoint,
+  historyTimestampAxis,
+  type PlantSeriesColor,
+} from "@/shared/historySeries";
+import { formatMetricDisplayValue } from "@/shared/metricFormat";
+import type { SensorAccent } from "@/shared/metricPresentation";
 
-interface HistoryPoint {
-  ts: string;
-  value: number | null;
-}
+export type SparklineColor = SensorAccent | PlantSeriesColor;
 
-interface HoverPoint {
-  index: number;
-  ts: string;
-}
-
-type SparklineAccent =
-  | "temp"
-  | "humidity"
-  | "vpd"
-  | "moisture"
-  | "reservoir"
-  | "neutral";
-
-interface SparklineProps {
-  /** Metric display name; the article's accessible name + heading text. */
-  name: string;
-  /** Bucketed series for the current range. Empty while loading. */
+export type SparklineSeries = {
+  color: SparklineColor;
+  id: string;
+  label: string;
   points: readonly HistoryPoint[];
-  /** Unit string from the metric-history envelope (e.g. "°F", "kPa"). */
-  unit: string;
-  /** Sensor accent (line + marker + diamond + area-fill colour). */
-  accent?: SparklineAccent;
-  /** Number of decimal places the backend presentation registry requests. */
-  valuePrecision?: number;
-  /** Message shown when the selected range has no points. */
-  emptyLabel?: string;
-  /**
-   * Shared crosshair index across the history grid; null = no hover.
-   * Derived from the parent's pointer-move handler.
-   */
-  hoverIndex: number | null;
-  /** Called when the pointer moves over a bucket in this sparkline. */
-  onHoverIndex: (index: number | null) => void;
-  /** Called with the bucket timestamp for the sparkline currently being hovered. */
-  onHoverPoint?: (point: HoverPoint | null) => void;
-  /**
-   * Optional fixed y-axis domain. When both ends are supplied the chart
-   * uses them instead of auto-scaling to the data, and out-of-domain
-   * values are clamped to the viewbox (the tooltip still shows the real
-   * value).
-   */
-  yMin?: number;
-  yMax?: number;
-  /** Optional metric metadata rendered between the heading and chart. */
-  summary?: ReactNode;
+};
+
+type SparklineProps = {
+  /** Rollup cadence used to retain missing buckets as explicit gaps. */
+  bucket?: HistoryBucket;
   /** Full-card chrome for standalone metric tiles; grid keeps dashboard borders. */
   chrome?: "grid" | "card";
-}
+  /** Message shown when the selected range has no values. */
+  emptyLabel?: string;
+  /** Timestamp shared across related history charts; null means no crosshair. */
+  hoverTimestamp: string | null;
+  /** Metric display name; the article's accessible name and heading text. */
+  name: string;
+  /** Called with the nearest real bucket timestamp under the pointer. */
+  onHoverTimestamp: (timestamp: string | null) => void;
+  /** One or more independently identified timestamped histories. */
+  series: readonly SparklineSeries[];
+  /** Optional metric metadata rendered between the heading and chart. */
+  summary?: ReactNode;
+  /** Unit string shared by every series in this metric chart. */
+  unit: string;
+  /** Number of decimal places requested by metric presentation. */
+  valuePrecision?: number;
+  /** Optional fixed y-axis domain. */
+  yMax?: number;
+  yMin?: number;
+};
 
-const ACCENT_STROKE: Record<SparklineAccent, string> = {
-  temp: "stroke-sensor-temp",
-  humidity: "stroke-sensor-humidity",
-  vpd: "stroke-sensor-vpd",
-  moisture: "stroke-sensor-moisture",
-  reservoir: "stroke-sensor-reservoir",
-  neutral: "stroke-ink",
-};
-const ACCENT_FILL: Record<SparklineAccent, string> = {
-  temp: "fill-sensor-temp",
-  humidity: "fill-sensor-humidity",
-  vpd: "fill-sensor-vpd",
-  moisture: "fill-sensor-moisture",
-  reservoir: "fill-sensor-reservoir",
-  neutral: "fill-ink",
-};
-const ACCENT_TEXT: Record<SparklineAccent, string> = {
-  temp: "text-sensor-temp",
-  humidity: "text-sensor-humidity",
-  vpd: "text-sensor-vpd",
-  moisture: "text-sensor-moisture",
-  reservoir: "text-sensor-reservoir",
-  neutral: "text-ink",
-};
+const COLOR_CLASSES = {
+  temp: {
+    fill: "fill-sensor-temp",
+    stroke: "stroke-sensor-temp",
+    text: "text-sensor-temp",
+  },
+  humidity: {
+    fill: "fill-sensor-humidity",
+    stroke: "stroke-sensor-humidity",
+    text: "text-sensor-humidity",
+  },
+  vpd: {
+    fill: "fill-sensor-vpd",
+    stroke: "stroke-sensor-vpd",
+    text: "text-sensor-vpd",
+  },
+  moisture: {
+    fill: "fill-sensor-moisture",
+    stroke: "stroke-sensor-moisture",
+    text: "text-sensor-moisture",
+  },
+  reservoir: {
+    fill: "fill-sensor-reservoir",
+    stroke: "stroke-sensor-reservoir",
+    text: "text-sensor-reservoir",
+  },
+  neutral: { fill: "fill-ink", stroke: "stroke-ink", text: "text-ink" },
+  "plant-a": {
+    fill: "fill-plant-a",
+    stroke: "stroke-plant-a",
+    text: "text-plant-a",
+  },
+  "plant-b": {
+    fill: "fill-plant-b",
+    stroke: "stroke-plant-b",
+    text: "text-plant-b",
+  },
+  "plant-c": {
+    fill: "fill-plant-c",
+    stroke: "stroke-plant-c",
+    text: "text-plant-c",
+  },
+  "plant-d": {
+    fill: "fill-plant-d",
+    stroke: "stroke-plant-d",
+    text: "text-plant-d",
+  },
+} satisfies Record<SparklineColor, { fill: string; stroke: string; text: string }>;
 
 const VIEWBOX_W = 100;
 const VIEWBOX_H = 30;
 
-function formatValue(value: number, unit: string, precision: number): string {
-  const formatted = formatMetricValue(value, precision);
-  return unit === "raw" ? `${formatted} raw` : `${formatted}${unit}`;
-}
-
 export function Sparkline({
+  bucket,
   chrome = "grid",
-  name,
-  points,
-  unit,
-  accent = "neutral",
-  valuePrecision = 1,
   emptyLabel = "No data for this range",
-  hoverIndex,
-  onHoverIndex,
-  onHoverPoint,
-  yMin,
-  yMax,
+  hoverTimestamp,
+  name,
+  onHoverTimestamp,
+  series,
   summary,
+  unit,
+  valuePrecision = 1,
+  yMax,
+  yMin,
 }: SparklineProps): ReactNode {
-  const lineStroke = ACCENT_STROKE[accent];
-  const areaFill = ACCENT_FILL[accent];
-  const diamondColor = ACCENT_TEXT[accent];
-  const tooltipColor = ACCENT_TEXT[accent];
   const articleClass =
     chrome === "card"
       ? "flex flex-col gap-2 border border-rule-strong bg-paper-2 px-3.5 py-3"
       : "flex flex-col gap-2 border-b border-r border-rule bg-paper-2 px-3.5 py-3";
-
-  if (points.length === 0) {
-    return (
-      <article aria-label={`${name} sparkline`} className={articleClass}>
-        <header className="flex items-center gap-2 font-sans text-fs-11 font-medium text-ink-2">
-          <span aria-hidden="true" className={diamondColor}>
-            ◆
-          </span>
-          <span>{name}</span>
-        </header>
-        {summary}
-        <div className="flex h-10 items-center border border-dashed border-rule px-2">
-          <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
-            {emptyLabel}
-          </p>
-        </div>
-      </article>
-    );
-  }
-
-  const values = points.flatMap((p) => (p.value === null ? [] : [p.value]));
-  if (values.length === 0) {
-    return (
-      <article aria-label={`${name} sparkline`} className={articleClass}>
-        <header className="flex items-center gap-2 font-sans text-fs-11 font-medium text-ink-2">
-          <span aria-hidden="true" className={diamondColor}>
-            ◆
-          </span>
-          <span>{name}</span>
-        </header>
-        {summary}
-        <div className="flex h-10 items-center border border-dashed border-rule px-2">
-          <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
-            {emptyLabel}
-          </p>
-        </div>
-      </article>
-    );
-  }
-
-  const hasFixedDomain = yMin !== undefined && yMax !== undefined && yMax > yMin;
-  const min = hasFixedDomain ? (yMin as number) : Math.min(...values);
-  const max = hasFixedDomain ? (yMax as number) : Math.max(...values);
-  const range = max - min || 1;
-  const stepX = points.length === 1 ? 0 : VIEWBOX_W / (points.length - 1);
-  const yFor = (v: number): number => {
-    const clamped = hasFixedDomain ? Math.max(min, Math.min(max, v)) : v;
-    return VIEWBOX_H - ((clamped - min) / range) * VIEWBOX_H;
+  const headerColor = COLOR_CLASSES[series[0]?.color ?? "neutral"].text;
+  const chartData = useMemo(
+    () => ({
+      axis: historyTimestampAxis(
+        series.map((item) => item.points),
+        bucket,
+      ),
+      values: series.flatMap((item) =>
+        item.points.flatMap((point) => (point.value === null ? [] : [point.value])),
+      ),
+    }),
+    [bucket, series],
+  );
+  const yDomain = {
+    ...(yMin === undefined ? {} : { yMin }),
+    ...(yMax === undefined ? {} : { yMax }),
   };
-  const xFor = (i: number): number => (points.length === 1 ? VIEWBOX_W / 2 : i * stepX);
-
-  const pathSegments = buildPathSegments(points, xFor, yFor);
-
-  const handlePointerPosition = (event: React.PointerEvent<SVGSVGElement>): void => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    const relX = event.clientX - rect.left;
-    if (rect.width <= 0) {
-      onHoverIndex(null);
-      return;
-    }
-    const ratio = Math.max(0, Math.min(1, relX / rect.width));
-    const index = Math.round(ratio * (points.length - 1));
-    onHoverIndex(index);
-    const point = points[index];
-    onHoverPoint?.(point ? { index, ts: point.ts } : null);
-  };
-
-  const handlePointerDown = (event: React.PointerEvent<SVGSVGElement>): void => {
-    if (event.pointerType === "touch") {
-      event.preventDefault();
-    }
-    event.currentTarget.setPointerCapture(event.pointerId);
-    handlePointerPosition(event);
-  };
-
-  const handlePointerUp = (event: React.PointerEvent<SVGSVGElement>): void => {
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-  };
-
-  const handlePointerLeave = (event: React.PointerEvent<SVGSVGElement>): void => {
-    if (event.pointerType === "touch") {
-      return;
-    }
-    onHoverIndex(null);
-    onHoverPoint?.(null);
-  };
-
-  const clampedHover =
-    hoverIndex === null ? null : Math.max(0, Math.min(points.length - 1, hoverIndex));
-  const hoverPoint = clampedHover === null ? null : (points[clampedHover] ?? null);
-  const hovered =
-    hoverPoint?.value === undefined || hoverPoint.value === null
-      ? null
-      : { ts: hoverPoint.ts, value: hoverPoint.value };
-  const hoverX = clampedHover === null ? null : xFor(clampedHover);
-  const hoverY = hovered === null ? null : yFor(hovered.value);
-  const hoverRatio =
-    clampedHover === null ? null : clampedHover / (points.length - 1 || 1);
 
   return (
     <article aria-label={`${name} sparkline`} className={articleClass}>
       <header className="flex items-center gap-2 font-sans text-fs-11 font-medium text-ink-2">
-        <span aria-hidden="true" className={diamondColor}>
+        <span aria-hidden="true" className={headerColor}>
           ◆
         </span>
         <span>{name}</span>
       </header>
       {summary}
-      <div className="relative cursor-crosshair">
-        <svg
-          aria-label="sparkline"
-          role="img"
-          viewBox={`0 0 ${VIEWBOX_W} ${VIEWBOX_H}`}
-          preserveAspectRatio="none"
-          className="block h-10 w-full touch-none select-none"
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerPosition}
-          onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerUp}
-          onPointerLeave={handlePointerLeave}
+      {series.length > 1 ? <SparklineLegend series={series} /> : null}
+      {chartData.axis.length === 0 || chartData.values.length === 0 ? (
+        <div className="flex h-10 items-center border border-dashed border-rule px-2">
+          <p className="font-mono text-fs-10 uppercase tracking-caps text-ink-3">
+            {emptyLabel}
+          </p>
+        </div>
+      ) : (
+        <SparklinePlot
+          axis={chartData.axis}
+          hoverTimestamp={hoverTimestamp}
+          name={name}
+          onHoverTimestamp={onHoverTimestamp}
+          series={series}
+          unit={unit}
+          valuePrecision={valuePrecision}
+          values={chartData.values}
+          {...yDomain}
+        />
+      )}
+    </article>
+  );
+}
+
+function SparklineLegend({
+  series,
+}: {
+  series: readonly SparklineSeries[];
+}): ReactNode {
+  return (
+    <ul aria-label="Series legend" className="flex flex-wrap gap-x-3 gap-y-1">
+      {series.map((item) => (
+        <li
+          key={item.id}
+          className="inline-flex min-w-0 items-center gap-1.5 font-mono text-fs-9 uppercase tracking-caps text-ink-3"
         >
-          <title>{`${name} — ${points.length} points`}</title>
-          {pathSegments.map((segment) => (
+          <span
+            aria-hidden="true"
+            className={`h-1.5 w-1.5 ${COLOR_CLASSES[item.color].fill}`}
+          />
+          <span className="truncate">{item.label}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function SparklinePlot({
+  axis,
+  hoverTimestamp,
+  name,
+  onHoverTimestamp,
+  series,
+  unit,
+  valuePrecision,
+  values,
+  yMax,
+  yMin,
+}: {
+  axis: readonly string[];
+  hoverTimestamp: string | null;
+  name: string;
+  onHoverTimestamp: (timestamp: string | null) => void;
+  series: readonly SparklineSeries[];
+  unit: string;
+  valuePrecision: number;
+  values: readonly number[];
+  yMax?: number;
+  yMin?: number;
+}): ReactNode {
+  const geometry = useMemo(() => {
+    const hasFixedDomain = yMin !== undefined && yMax !== undefined && yMax > yMin;
+    const min = hasFixedDomain && yMin !== undefined ? yMin : Math.min(...values);
+    const max = hasFixedDomain && yMax !== undefined ? yMax : Math.max(...values);
+    const range = max - min || 1;
+    const stepX = axis.length === 1 ? 0 : VIEWBOX_W / (axis.length - 1);
+    const xFor = (index: number): number =>
+      axis.length === 1 ? VIEWBOX_W / 2 : index * stepX;
+    const yFor = (value: number): number => {
+      const clamped = hasFixedDomain ? Math.max(min, Math.min(max, value)) : value;
+      return VIEWBOX_H - ((clamped - min) / range) * VIEWBOX_H;
+    };
+    const plottedSeries = series.map((item) => {
+      const alignedPoints = alignHistoryPoints(item.points, axis);
+      return {
+        ...item,
+        alignedPoints,
+        paths: buildPathSegments(alignedPoints, xFor, yFor),
+      };
+    });
+    return { plottedSeries, xFor, yFor };
+  }, [axis, series, values, yMax, yMin]);
+  const { plottedSeries, xFor, yFor } = geometry;
+  const hoverAxisIndex = hoverTimestamp === null ? -1 : axis.indexOf(hoverTimestamp);
+  const hoverX = hoverAxisIndex < 0 ? null : xFor(hoverAxisIndex);
+  const hoveredValues =
+    hoverAxisIndex < 0
+      ? []
+      : plottedSeries.flatMap((item) => {
+          const point = item.alignedPoints[hoverAxisIndex];
+          return point?.value === null || point?.value === undefined
+            ? []
+            : [
+                {
+                  color: item.color,
+                  id: item.id,
+                  label: item.label,
+                  value: point.value,
+                },
+              ];
+        });
+
+  const setHoverFromPointer = (event: PointerEvent<SVGSVGElement>): void => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    if (rect.width <= 0) {
+      onHoverTimestamp(null);
+      return;
+    }
+    const ratio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+    const index = Math.round(ratio * (axis.length - 1));
+    onHoverTimestamp(axis[index] ?? null);
+  };
+
+  const handlePointerDown = (event: PointerEvent<SVGSVGElement>): void => {
+    if (event.pointerType === "touch") event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setHoverFromPointer(event);
+  };
+
+  const handlePointerUp = (event: PointerEvent<SVGSVGElement>): void => {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
+  return (
+    <div className="relative cursor-crosshair">
+      <svg
+        aria-label="sparkline"
+        role="img"
+        viewBox={`0 0 ${VIEWBOX_W} ${VIEWBOX_H}`}
+        preserveAspectRatio="none"
+        className="block h-16 w-full touch-none select-none"
+        onPointerDown={handlePointerDown}
+        onPointerMove={setHoverFromPointer}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        onPointerLeave={(event) => {
+          if (event.pointerType !== "touch") onHoverTimestamp(null);
+        }}
+      >
+        <title>{`${name} — ${series.length} series, ${axis.length} timestamps`}</title>
+        {plottedSeries.flatMap((item) =>
+          item.paths.map((segment) => (
             <path
-              key={`area-${segment.key}`}
+              key={`area-${item.id}-${segment.key}`}
               d={segment.areaPath}
-              className={areaFill}
-              opacity="0.1"
+              className={COLOR_CLASSES[item.color].fill}
+              opacity="0.08"
             />
-          ))}
-          {pathSegments.map((segment) => (
+          )),
+        )}
+        {plottedSeries.flatMap((item) =>
+          item.paths.map((segment) => (
             <path
-              key={`line-${segment.key}`}
+              key={`line-${item.id}-${segment.key}`}
               d={segment.linePath}
-              className={lineStroke}
-              strokeWidth="0.8"
+              className={COLOR_CLASSES[item.color].stroke}
+              strokeWidth="0.9"
               fill="none"
               vectorEffect="non-scaling-stroke"
             />
-          ))}
-          {hoverX !== null ? (
-            <g aria-label="crosshair">
-              <line
-                x1={hoverX}
-                y1={0}
-                x2={hoverX}
-                y2={VIEWBOX_H}
-                className="stroke-ink"
-                strokeWidth="0.4"
-                strokeDasharray="1 1"
+          )),
+        )}
+        {hoverX === null ? null : (
+          <g aria-label="crosshair">
+            <line
+              x1={hoverX}
+              y1={0}
+              x2={hoverX}
+              y2={VIEWBOX_H}
+              className="stroke-ink"
+              strokeWidth="0.4"
+              strokeDasharray="1 1"
+              vectorEffect="non-scaling-stroke"
+              opacity="0.55"
+            />
+            {hoveredValues.map((item) => (
+              <circle
+                key={item.id}
+                cx={hoverX}
+                cy={yFor(item.value)}
+                r="1.3"
+                className={`${COLOR_CLASSES[item.color].fill} stroke-paper`}
+                strokeWidth="0.5"
                 vectorEffect="non-scaling-stroke"
-                opacity="0.55"
               />
-              {hoverY !== null ? (
-                <circle
-                  cx={hoverX}
-                  cy={hoverY}
-                  r="1.3"
-                  className={`${ACCENT_FILL[accent]} stroke-paper`}
-                  strokeWidth="0.5"
-                  vectorEffect="non-scaling-stroke"
-                />
-              ) : null}
-            </g>
-          ) : null}
-        </svg>
-        {hovered !== null && hoverRatio !== null ? (
-          <span
-            role="tooltip"
-            data-hover-index={clampedHover ?? undefined}
-            // eslint-disable-next-line no-restricted-syntax -- runtime-computed hover position; not expressible in build-time Tailwind classes
-            style={{ left: `${hoverRatio * 100}%` }}
-            className={`pointer-events-none absolute -top-3.5 -translate-x-1/2 whitespace-nowrap border border-rule-strong bg-paper px-1.5 py-px font-mono text-fs-10 tabular-nums ${tooltipColor}`}
-          >
-            {formatValue(hovered.value, unit, valuePrecision)}
-          </span>
-        ) : null}
-      </div>
-    </article>
+            ))}
+          </g>
+        )}
+      </svg>
+      {hoveredValues.length === 0 ? null : (
+        <div
+          role="tooltip"
+          data-hover-timestamp={hoverTimestamp ?? undefined}
+          className="pointer-events-none absolute right-0 top-0 border border-rule-strong bg-paper px-1.5 py-px font-mono text-fs-10 tabular-nums"
+        >
+          {hoveredValues.map((item) => (
+            <div key={item.id} className={COLOR_CLASSES[item.color].text}>
+              {hoveredValues.length > 1 ? `${item.label}: ` : ""}
+              {formatMetricDisplayValue(item.value, valuePrecision, unit)}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -344,8 +384,8 @@ function buildPathSegments(
     if (current.length === 0) return;
     const linePath = current
       .map((point, index) => {
-        const cmd = index === 0 ? "M" : "L";
-        return `${cmd} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`;
+        const command = index === 0 ? "M" : "L";
+        return `${command} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`;
       })
       .join(" ");
     const first = current[0];
@@ -364,9 +404,7 @@ function buildPathSegments(
       flush(index - 1);
       return;
     }
-    if (current.length === 0) {
-      startIndex = index;
-    }
+    if (current.length === 0) startIndex = index;
     current.push({ x: xFor(index), y: yFor(point.value) });
   });
   flush(points.length - 1);

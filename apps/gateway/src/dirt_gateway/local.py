@@ -40,6 +40,7 @@ from dirt_shared.cloud_contract import (
     WikiProjectionPage,
     WikiProjectionRequest,
 )
+from dirt_shared.metric_history import METRIC_ROLLUP_SPECS, MetricHistoryBucket
 from dirt_shared.models import (
     Capability,
     CrossEvent,
@@ -67,12 +68,6 @@ from dirt_shared.services.scope import require_default_site, require_default_sit
 from dirt_shared.services.scope_catalog import ScopeCatalogService
 from dirt_shared.services.snapshots import get_snapshot_path
 
-ROLLUP_SPECS: tuple[tuple[str, timedelta, int], ...] = (
-    ("5m", timedelta(hours=24), 300),
-    ("1h", timedelta(days=7), 3600),
-    ("4h", timedelta(days=30), 14400),
-    ("1d", timedelta(days=90), 86400),
-)
 WIKI_ROOT = Path(__file__).resolve().parents[4] / "wiki"
 WIKI_EXCLUDED_PATHS = ("wiki/AGENTS.md", "wiki/private/**", "wiki/raw/**")
 WIKI_PLANT_PAGE_GLOB = "grows/*/plants/*.md"
@@ -189,13 +184,16 @@ class GatewayLocalServiceBundle:
         return LatestMetricsRequest(site_id=site_id, metrics=metrics)
 
     async def collect_rollups(
-        self, site_id: str, *, bucket_names: set[str] | None = None
+        self,
+        site_id: str,
+        *,
+        bucket_names: set[MetricHistoryBucket] | None = None,
     ) -> RollupsRequest:
         now = self._clock()
         rollups: list[RollupItem] = []
         async with AsyncSession(self._engine) as session:
             site_pk = await require_default_site_pk(session)
-            for bucket, window, bucket_s in ROLLUP_SPECS:
+            for bucket, retention, bucket_seconds in METRIC_ROLLUP_SPECS:
                 if bucket_names is not None and bucket not in bucket_names:
                     continue
                 rollups.extend(
@@ -203,9 +201,9 @@ class GatewayLocalServiceBundle:
                         session,
                         site_id=site_id,
                         site_pk=site_pk,
-                        since=now - window,
+                        since=now - retention,
                         bucket=bucket,
-                        bucket_s=bucket_s,
+                        bucket_s=bucket_seconds,
                     )
                 )
                 rollups.extend(
@@ -213,9 +211,9 @@ class GatewayLocalServiceBundle:
                         session,
                         site_id=site_id,
                         site_pk=site_pk,
-                        since=now - window,
+                        since=now - retention,
                         bucket=bucket,
-                        bucket_s=bucket_s,
+                        bucket_s=bucket_seconds,
                     )
                 )
         return RollupsRequest(site_id=site_id, rollups=rollups)
@@ -716,7 +714,7 @@ async def collect_canonical_history_rollups(  # noqa: PLR0913
     site_id: str,
     site_pk: int,
     since: datetime,
-    bucket: str,
+    bucket: MetricHistoryBucket,
     bucket_s: int,
 ) -> list[RollupItem]:
     sql = """
@@ -776,7 +774,7 @@ async def collect_dehumidifier_runtime_rollups(  # noqa: PLR0913
     site_id: str,
     site_pk: int,
     since: datetime,
-    bucket: str,
+    bucket: MetricHistoryBucket,
     bucket_s: int,
 ) -> list[RollupItem]:
     sql = """
@@ -880,7 +878,7 @@ def _rollup_items_from_rows(
     rows: list[Any],
     *,
     site_id: str,
-    bucket: str,
+    bucket: MetricHistoryBucket,
     bucket_s: int,
 ) -> list[RollupItem]:
     rollups: list[RollupItem] = []

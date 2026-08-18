@@ -18,9 +18,8 @@ The behavior is observable through focused API and React tests, the local hosted
 
 - [x] (2026-08-18 08:04Z) Audited the existing metric presentation, rollup, mapped-plant history, tent UI, plant UI, and Sparkline paths.
 - [x] (2026-08-18 08:09Z) Milestone 1: encoded the repository-owned service-consumer rule in root `AGENTS.md` and its operational/data-safety boundary in `docs/rules/simple-clean-architecture.md`; focused sanity validation and simplify review passed.
-- [ ] Milestone 2: implement the canonical backend history contract, batch collection endpoint, presentation cleanup, migrations, and dead backend-path removal.
-- [ ] Milestone 3: cut the frontend over to timestamped multi-series history and add the tent substrate-sentinel panel.
-- [ ] Milestone 4: perform simplification review, full validation, local browser acceptance, hosted deployment, final worktree commit, and push to `main`.
+- [x] (2026-08-18 09:28Z) Milestone 2: completed the atomic backend/frontend contract cutover, including invariant correction, timestamped multi-series Sparkline, mapped sentinel panel, plant-detail history cleanup, focused UI coverage, simplify review, frontend typecheck/lint/tests/build, and one rollback commit.
+- [ ] Milestone 3: perform final simplification review, full validation, local browser acceptance, hosted deployment, final worktree commit, and push to `main`.
 
 
 ## Surprises & Discoveries
@@ -42,6 +41,27 @@ The behavior is observable through focused API and React tests, the local hosted
 
 - Observation: prior test guidance used “public contracts,” which could be misread as including repository-owned HTTP APIs.
   Evidence: Milestone 1 replaced it with the precise term “outside-owned contracts,” preserving direct cutovers for all Dirt-owned browser and service APIs.
+
+- Observation: the installed Atlas `v1.2.1-0dd5685-canary` Pro-gates `migrate lint` and does not support the documented `migrate hash --dry-run` option.
+  Evidence: normal local/cloud hash generation succeeded and the database-backed migration registry tests replayed both migration sets successfully, so those available checks are the migration evidence for this plan.
+
+- Observation: PostgreSQL template-database tests in this worktree cannot run concurrently because their shared worktree prefix lets one pytest process drop another process's template.
+  Evidence: a parallel main-agent validation produced `database ... does not exist`; rerunning the same shared/invariant tests sequentially passed 6/6. Feature suites are run sequentially from this point.
+
+- Observation: the generated API cutover necessarily makes the old frontend fail TypeScript compilation until its owned callers are updated.
+  Evidence: the milestone-2 pre-commit hook rejected old presentation paths and verbose plant-history point fields after contract regeneration. Backend and frontend are therefore phases of one atomic milestone and receive one rollback commit; a compatibility response or route would violate the direct-cutover decision.
+
+- Observation: the first shared rollup-policy representation instantiated frozen dataclasses at module import, which still violates the human-owned no-module-singletons invariant.
+  Evidence: pre-commit reported nine `MetricRollupSpec(...)` and `MetricHistoryRangeSpec(...)` violations in `apps/shared/src/dirt_shared/metric_history.py`. The invariant remains unchanged; the representation must use literal immutable data instead.
+
+- Observation: the former plant UI presented the last rollup average as a current reading, so changing from 24h to 7d or 30d could change the apparent “current” value.
+  Evidence: Milestone 2 now correlates exact `(device_id, capability_id, metric)` live telemetry for the summary and labels missing current data honestly.
+
+- Observation: ordinal union-only chart axes compressed intervals missing from every series and could visually connect across a sensor outage.
+  Evidence: the shared history helper now expands the observed timestamp span at the response bucket cadence and inserts explicit null gaps; Sparkline splits line and area paths at every null.
+
+- Observation: plant history previously began only after suspense detail resolved, and plant command convergence invalidated all history ranges even though those commands cannot change sensor history.
+  Evidence: detail-route history now starts in parallel from the route plant key, remains disabled on non-detail surfaces, and command convergence invalidates only detail/list data.
 
 
 ## Decision Log
@@ -83,6 +103,10 @@ The behavior is observable through focused API and React tests, the local hosted
 
 Milestone 1 established the compatibility preference through progressive disclosure: one concise always-loaded instruction and one canonical deep explanation. The simplify review removed duplicate root guidance and retained concrete migration, deployment, rollback, and outside-owned-protocol safety exceptions.
 
+Milestone 2 established one mapped-plant metric service for current readings and timestamped history, with exact composite stream identities and bounded batched queries. Generic tent history now aggregates physical streams intentionally in SQL. Substrate metrics remain rollup-enabled but are excluded from generic groups by matching local/cloud migrations. The old tent detail/history routes, false tent-scoped presentation route, optional physical-stream selectors, duplicate orchestration, verbose point contract, and unreachable gateway branch are gone.
+
+The frontend half completed the direct generated-contract cutover without aliases or adapters. `Sparkline` has one timestamped `series[]` contract, full-cadence gaps, memoized geometry, timestamp hover, and stable plant-identity colors. The tent page fetches one mapped collection per tent/range and renders soil moisture, EC, and pH sentinel charts with honest loading/error/empty states. Plant detail fetches history independently, preserves generated stream metadata, polls active history every 30 seconds, and uses exact live telemetry for current summaries. Fake timestamps, fixed moisture presentation, custom metric whitelists, duplicate accents, overbroad history invalidation, and the inert probe button are removed.
+
 
 ## Context and Orientation
 
@@ -105,7 +129,7 @@ Expand that deep-dive rule with the operational boundary: no external consumers 
 
 Acceptance: a future agent sees the fact in root instructions, has one canonical detailed explanation, and is not taught to ignore real data/deploy safety.
 
-### Milestone 2: Build one truthful backend history path
+### Milestone 2, phase A: Build one truthful backend history path
 
 Move range policy, substrate unit conversion, stream-key handling, and shared history assembly out of boundary schema modules into a focused metric-history service module. Type accepted range keys in FastAPI/Pydantic so invalid values fail at the boundary. Remove the unused `supported_ranges` response field and helper; the frontend owns labels/order and compiles against the generated range union.
 
@@ -123,7 +147,7 @@ Regenerate `web-ui/src/api-client/generated/hosted-schema.ts`. Do not preserve o
 
 Acceptance: three plants with identical timestamps remain three separate mapped streams in the collection response; inactive/unmapped and Cartesian-lookalike streams are absent; query count remains bounded as plant count grows; generic tent history has one point per timestamp; substrate metrics are absent from generic presentation groups; breeding history uses the slim timestamped contract; removed routes return 404 in tests.
 
-### Milestone 3: Direct frontend multi-series cutover
+### Milestone 2, phase B: Direct frontend multi-series cutover
 
 Change `web-ui/src/ui/Sparkline.tsx` to accept chart metadata plus `series[]`, where each series carries stable ID, label, accent/color, and `{ts, value|null}` points. Preserve zero as data and null as a gap. Make hover input/output timestamp-based. Update both production callers and tests in the same cutover, then delete the old `points`, top-level single-series accent, hover-index, and duplicate hover-point contracts.
 
@@ -133,7 +157,9 @@ Split plant detail and plant history into separate TanStack Query keys with rang
 
 Acceptance: the tent panel shows three chart cards with one series per mapped sentinel and works at all five ranges; shared hover labels represent the same timestamp; plant detail changes range without refetching unrelated detail; EC and pH display configured units/precision; no fake timestamps, compatibility Sparkline props, or duplicate accent types remain.
 
-### Milestone 4: Simplify, validate, deploy, and release
+The backend and frontend phases form one atomic source-owned contract milestone. Commit them together only after generated contracts, backend tests, frontend typecheck, and pre-commit hooks pass. Do not insert a compatibility route, response field, or Sparkline overload merely to create an intermediate commit.
+
+### Milestone 3: Simplify, validate, deploy, and release
 
 Run the repository simplification process over the complete feature diff, applying only concrete reuse, quality, and efficiency improvements. Confirm no shims, stale routes, dead types, duplicate unit conversions, N+1 queries, or chart-specific backend abstractions remain.
 
@@ -212,6 +238,33 @@ Starting branch state:
 
 Starting unrelated dirty files include `README.md`, `scripts/lint.py`, existing wiki pages, and new `wiki/daily/2026-08-01.md` through `2026-08-17.md`. They are outside feature milestones and are intentionally included only in the operator-authorized final worktree commit.
 
+Milestone 2 validation evidence:
+
+    uv run pytest apps/control-plane/tests -q
+    77 passed
+
+    uv run pytest apps/gateway/tests -q
+    62 passed
+
+    uv run pytest apps/shared/tests/test_metric_presentation_registry.py apps/tests/invariants/test_schema_managed_by_atlas.py -q
+    6 passed (sequential rerun)
+
+    uv run ruff check ...
+    uv run ruff format --check ...
+    scripts/gen-hosted-contract
+    git diff --check
+    all passed
+
+Milestone 2 frontend evidence:
+
+    pnpm --dir web-ui typecheck
+    pnpm --dir web-ui lint
+    pnpm --dir web-ui test
+    5 files, 26 tests passed
+
+    pnpm --dir web-ui build
+    452 modules transformed; production build passed
+
 
 ## Interfaces and Dependencies
 
@@ -230,3 +283,4 @@ No new external dependency is required. Existing PostgreSQL/Atlas, FastAPI/Pydan
 ## Revision Notes
 
 - 2026-08-18: Initial plan written from the operator-approved architecture and read-only cleanup audit.
+- 2026-08-18: Combined the backend and frontend phases into one atomic milestone after pre-commit proved that the generated direct contract intentionally makes the old owned frontend uncompilable; no compatibility shim will be introduced to preserve an artificial intermediate commit.

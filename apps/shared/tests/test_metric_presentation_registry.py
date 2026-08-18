@@ -52,6 +52,9 @@ async def test_local_metric_presentation_seed_marks_product_history(app_engine):
     assert by_metric["soil_moisture_pct"].unit == "%"
     assert by_metric["soil_moisture_pct"].history_enabled is True
     assert by_metric["soil_moisture_pct"].current_enabled is False
+    assert by_metric["soil_moisture_pct"].dashboard_group is None
+    assert by_metric["soil_moisture_pct"].dashboard_group_label is None
+    assert by_metric["soil_moisture_pct"].dashboard_group_order is None
     for metric, (display_name, unit, precision) in SUBSTRATE_PRESENTATION_ROWS.items():
         row = by_metric[metric]
         assert row.display_name == display_name
@@ -59,6 +62,9 @@ async def test_local_metric_presentation_seed_marks_product_history(app_engine):
         assert row.value_precision == precision
         assert row.history_enabled is True
         assert row.current_enabled is False
+        assert row.dashboard_group is None
+        assert row.dashboard_group_label is None
+        assert row.dashboard_group_order is None
     assert RAW_OR_INTERNAL_METRICS.isdisjoint(history_metrics)
     assert "soil_moisture_raw" not in by_metric
 

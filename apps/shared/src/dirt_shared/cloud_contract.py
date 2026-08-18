@@ -7,6 +7,8 @@ from typing import Any, Literal, TypeAlias
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from dirt_shared.metric_history import MetricHistoryBucket
+
 
 class CloudContractModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -332,7 +334,7 @@ class RollupItem(CloudContractModel):
     device_id: str
     capability_id: str
     metric: str
-    bucket: str
+    bucket: MetricHistoryBucket
     bucket_start_at: datetime
     bucket_end_at: datetime
     min_value: float | None = None

@@ -3,45 +3,39 @@
 import { queryOptions, useQueries, useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import type { ChangeEvent, ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createHostedApiClient, type hostedComponents } from "@/api-client";
+import { alignHistoryPoints, historyTimestampAxis } from "@/shared/historySeries";
 import { formatMetricValue } from "@/shared/metricFormat";
+import type { SensorAccent } from "@/shared/metricPresentation";
 import { Gauge } from "@/ui/Gauge";
 import { HoverTimestamp } from "@/ui/HoverTimestamp";
 import { formatEmptyHistoryLabel } from "@/ui/historyRangeLabels";
 import { RangeSwitch, type SparklineRange } from "@/ui/RangeSwitch";
 import { Sparkline } from "@/ui/Sparkline";
+import { SubstrateSentinelsPanel } from "./SubstrateSentinelsPanel";
 
 const hostedApi = createHostedApiClient();
 const PLANT_DETAIL_ROUTE = "/plants/$plantKey" as const;
 const TENTS_REFETCH_MS = 30_000;
 
-type SparklineAccent =
-  | "temp"
-  | "humidity"
-  | "vpd"
-  | "moisture"
-  | "reservoir"
-  | "neutral";
 type MetricStatus = "ok" | "warn" | "crit";
 type HostedAsset = hostedComponents["schemas"]["AssetResponse"];
 type HostedDevice = hostedComponents["schemas"]["DeviceResponse"];
 type HostedLightSchedule = hostedComponents["schemas"]["LightScheduleResponse"];
 type HostedMetric = hostedComponents["schemas"]["CurrentMetricResponse"];
 type HostedMetricHistory = hostedComponents["schemas"]["MetricHistoryResponse"];
+type HostedMetricHistoryGroup =
+  hostedComponents["schemas"]["MetricPresentationHistoryGroupResponse"];
 type HostedMetricPresentation =
   hostedComponents["schemas"]["MetricPresentationMetricResponse"];
 type HostedPlant = hostedComponents["schemas"]["PlantSummaryResponse"];
 type HostedSyncStatus = hostedComponents["schemas"]["SyncStatusResponse"];
 type HostedTent = hostedComponents["schemas"]["TentResponse"];
 type TentLightSchedule = HostedLightSchedule;
-type HistoryPoint = {
-  ts: string;
-  value: number | null;
-};
 type MetricFreshness = "live" | "stale";
 type MetricCardModel = {
-  accent: SparklineAccent;
+  accent: SensorAccent;
   key: string;
   name: string;
   status: MetricStatus;
@@ -63,24 +57,11 @@ type DeviceRowModel = {
   lastSeenLabel: string;
   name: string;
 };
-
-// Whitelist the accent strings the FE knows how to render. Anything else
-// from the registry falls back to "neutral" so a future BE addition
-// can't break the SPA visually.
-const KNOWN_ACCENTS: ReadonlySet<SparklineAccent> = new Set([
-  "temp",
-  "humidity",
-  "vpd",
-  "moisture",
-  "reservoir",
-  "neutral",
-]);
-
-function asAccent(raw: string): SparklineAccent {
-  return KNOWN_ACCENTS.has(raw as SparklineAccent)
-    ? (raw as SparklineAccent)
-    : "neutral";
-}
+type MetricHistoryQueryState = {
+  data: HostedMetricHistory | undefined;
+  isError: boolean;
+  isLoading: boolean;
+};
 
 function hostedData<T>(data: T | undefined, path: string): T {
   if (data === undefined) {
@@ -174,8 +155,6 @@ export function TentsWorkspace({ sourceTentId }: { sourceTentId: string }): Reac
   const sourceTentIdNumber = parseSourceTentId(sourceTentId);
   const sourceTentPathId = sourceTentIdNumber ?? 0;
   const [range, setRange] = useState<SparklineRange>("24h");
-  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
-  const [hoverTimestamp, setHoverTimestamp] = useState<string | null>(null);
 
   const sitesQuery = useQuery(sitesQueryOptions());
   const tentsQuery = useQuery(tentsQueryOptions());
@@ -207,17 +186,11 @@ export function TentsWorkspace({ sourceTentId }: { sourceTentId: string }): Reac
   });
 
   const presentationQuery = useQuery({
-    queryKey: ["cloud.metrics.presentation", sourceTentIdNumber],
+    queryKey: ["cloud.metrics.presentation"],
     queryFn: async () => {
-      const { data } = await hostedApi.GET(
-        "/api/tents/{source_tent_id}/metrics/presentation",
-        {
-          params: { path: { source_tent_id: sourceTentPathId } },
-        },
-      );
-      return hostedData(data, "/api/tents/{source_tent_id}/metrics/presentation");
+      const { data } = await hostedApi.GET("/api/metrics/presentation");
+      return hostedData(data, "/api/metrics/presentation");
     },
-    enabled: sourceTentIdNumber !== null,
   });
 
   const plantsQuery = useQuery({
@@ -227,6 +200,24 @@ export function TentsWorkspace({ sourceTentId }: { sourceTentId: string }): Reac
         params: { path: { source_tent_id: sourceTentPathId } },
       });
       return hostedData(data, "/api/tents/{source_tent_id}/plants");
+    },
+    enabled: sourceTentIdNumber !== null,
+    refetchInterval: TENTS_REFETCH_MS,
+  });
+
+  const plantHistoryQuery = useQuery({
+    queryKey: ["cloud.plants.metrics.history", sourceTentIdNumber, { range }],
+    queryFn: async () => {
+      const { data } = await hostedApi.GET(
+        "/api/tents/{source_tent_id}/plants/metrics/history",
+        {
+          params: {
+            path: { source_tent_id: sourceTentPathId },
+            query: { range },
+          },
+        },
+      );
+      return hostedData(data, "/api/tents/{source_tent_id}/plants/metrics/history");
     },
     enabled: sourceTentIdNumber !== null,
     refetchInterval: TENTS_REFETCH_MS,
@@ -250,7 +241,7 @@ export function TentsWorkspace({ sourceTentId }: { sourceTentId: string }): Reac
         return hostedData(data, "/api/tents/{source_tent_id}/metrics/history");
       },
       enabled: sourceTentIdNumber !== null && presentationQuery.isSuccess,
-      refetchInterval: range === "1h" ? TENTS_REFETCH_MS : false,
+      refetchInterval: TENTS_REFETCH_MS,
     })),
   });
 
@@ -321,7 +312,6 @@ export function TentsWorkspace({ sourceTentId }: { sourceTentId: string }): Reac
   const historyByMetric = new Map(
     historyMetrics.map((m, idx) => [m.metric, historyResults[idx]]),
   );
-  const historyAxis = buildHistoryAxis(historyResults.map((result) => result.data));
   const assetPanel = toAssetPanelModel(
     assetsQuery.data?.[0] ?? null,
     Boolean(assetsQuery.error),
@@ -476,65 +466,25 @@ export function TentsWorkspace({ sourceTentId }: { sourceTentId: string }): Reac
               <h2 className="font-sans text-fs-11 font-semibold uppercase tracking-cap-wide text-ink-2">
                 History
               </h2>
-              <HoverTimestamp
-                hoverIndex={hoverIndex}
-                points={historyAxis.map((ts) => ({ ts }))}
-                timestamp={hoverTimestamp}
-              />
             </div>
-            <RangeSwitch value={range} onChange={setRange} />
+            <RangeSwitch
+              value={range}
+              onChange={(nextRange) => {
+                setRange(nextRange);
+              }}
+            />
           </header>
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            {historyGroups.map((group) => (
-              <section
-                key={group.group}
-                aria-label={`${group.label} history`}
-                className="flex min-w-0 flex-col"
-              >
-                <h3 className="border-x border-t border-rule-strong bg-paper-2 px-3.5 py-2 font-sans text-fs-10 font-semibold uppercase tracking-cap-med text-ink-3">
-                  {group.label}
-                </h3>
-                <div className="grid grid-cols-1 border border-rule-strong bg-paper-2">
-                  {group.metrics.map((m) => {
-                    const result = historyByMetric.get(m.metric);
-                    const points = result?.data
-                      ? toSparklinePoints(result.data, historyAxis)
-                      : [];
-                    const unit = result?.data?.points[0]?.unit ?? m.unit;
-                    const yProps = {
-                      ...(m.y_min !== null && m.y_min !== undefined
-                        ? { yMin: m.y_min }
-                        : {}),
-                      ...(m.y_max !== null && m.y_max !== undefined
-                        ? { yMax: m.y_max }
-                        : {}),
-                    };
-                    return (
-                      <Sparkline
-                        key={m.metric}
-                        name={m.display_name}
-                        points={points}
-                        unit={unit ?? ""}
-                        accent={asAccent(m.accent)}
-                        valuePrecision={m.value_precision}
-                        emptyLabel={
-                          result?.isLoading
-                            ? "Loading data"
-                            : formatEmptyHistoryLabel(range)
-                        }
-                        hoverIndex={hoverIndex}
-                        onHoverIndex={setHoverIndex}
-                        onHoverPoint={(point) => {
-                          setHoverTimestamp(point?.ts ?? null);
-                        }}
-                        {...yProps}
-                      />
-                    );
-                  })}
-                </div>
-              </section>
-            ))}
-          </div>
+          <SubstrateSentinelsPanel
+            error={plantHistoryQuery.isError}
+            history={plantHistoryQuery.data}
+            loading={plantHistoryQuery.isLoading}
+            range={range}
+          />
+          <GenericMetricHistoryGroups
+            groups={historyGroups}
+            historyByMetric={historyByMetric}
+            range={range}
+          />
         </section>
 
         <section className="grid gap-4 lg:grid-cols-[1fr_1fr]">
@@ -543,6 +493,135 @@ export function TentsWorkspace({ sourceTentId }: { sourceTentId: string }): Reac
         </section>
       </div>
     </main>
+  );
+}
+
+function GenericMetricHistoryGroups({
+  groups,
+  historyByMetric,
+  range,
+}: {
+  groups: readonly HostedMetricHistoryGroup[];
+  historyByMetric: ReadonlyMap<string, MetricHistoryQueryState | undefined>;
+  range: SparklineRange;
+}): ReactNode {
+  const [hoverState, setHoverState] = useState<{
+    range: SparklineRange;
+    timestamp: string | null;
+  }>({ range, timestamp: null });
+  const histories = useMemo(
+    () =>
+      [...historyByMetric.values()].flatMap((result) =>
+        result?.data === undefined ? [] : [result.data],
+      ),
+    [historyByMetric],
+  );
+  const historyAxis = useMemo(
+    () =>
+      historyTimestampAxis(
+        histories.map(metricHistoryPoints),
+        histories.flatMap((history) => history.points)[0]?.bucket,
+      ),
+    [histories],
+  );
+  const requestedHoverTimestamp =
+    hoverState.range === range ? hoverState.timestamp : null;
+  const hoverTimestamp =
+    requestedHoverTimestamp !== null && historyAxis.includes(requestedHoverTimestamp)
+      ? requestedHoverTimestamp
+      : null;
+
+  return (
+    <section aria-label="Tent metric history" className="flex flex-col">
+      <header className="flex min-h-9 items-baseline justify-between gap-3 border border-rule-strong bg-paper-2 px-3.5 py-2">
+        <h3 className="font-sans text-fs-10 font-semibold uppercase tracking-cap-med text-ink-3">
+          Tent metrics
+        </h3>
+        <HoverTimestamp timestamp={hoverTimestamp} />
+      </header>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        {groups.map((group) => (
+          <section
+            key={group.group}
+            aria-label={`${group.label} history`}
+            className="flex min-w-0 flex-col"
+          >
+            <h4 className="border-x border-t border-rule-strong bg-paper-2 px-3.5 py-2 font-sans text-fs-10 font-semibold uppercase tracking-cap-med text-ink-3">
+              {group.label}
+            </h4>
+            <div className="grid grid-cols-1 border border-rule-strong bg-paper-2">
+              {group.metrics.map((metric) => (
+                <GenericMetricSparkline
+                  key={metric.metric}
+                  historyAxis={historyAxis}
+                  hoverTimestamp={hoverTimestamp}
+                  metric={metric}
+                  onHoverTimestamp={(timestamp) => {
+                    setHoverState({ range, timestamp });
+                  }}
+                  range={range}
+                  result={historyByMetric.get(metric.metric)}
+                />
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function GenericMetricSparkline({
+  historyAxis,
+  hoverTimestamp,
+  metric,
+  onHoverTimestamp,
+  range,
+  result,
+}: {
+  historyAxis: readonly string[];
+  hoverTimestamp: string | null;
+  metric: HostedMetricPresentation;
+  onHoverTimestamp: (timestamp: string | null) => void;
+  range: SparklineRange;
+  result: MetricHistoryQueryState | undefined;
+}): ReactNode {
+  const series = useMemo(
+    () => [
+      {
+        color: metric.accent,
+        id: metric.metric,
+        label: metric.display_name,
+        points:
+          result?.data === undefined ? [] : toSparklinePoints(result.data, historyAxis),
+      },
+    ],
+    [historyAxis, metric, result?.data],
+  );
+  const bucket = result?.data?.points[0]?.bucket;
+  const yDomain = {
+    ...(metric.y_min === null ? {} : { yMin: metric.y_min }),
+    ...(metric.y_max === null ? {} : { yMax: metric.y_max }),
+  };
+
+  return (
+    <Sparkline
+      {...(bucket === undefined ? {} : { bucket })}
+      emptyLabel={
+        result?.isLoading
+          ? "Loading data"
+          : result?.isError
+            ? "Failed to load history"
+            : formatEmptyHistoryLabel(range)
+      }
+      hoverTimestamp={hoverTimestamp}
+      name={metric.display_name}
+      onHoverTimestamp={onHoverTimestamp}
+      series={series}
+      unit={result?.data?.points[0]?.unit ?? metric.unit ?? ""}
+      valuePrecision={metric.value_precision}
+      {...yDomain}
+    />
   );
 }
 
@@ -816,7 +895,7 @@ function toMetricCards(
     if (!metric) return [];
     return [
       {
-        accent: asAccent(presentation.accent),
+        accent: presentation.accent,
         key: presentation.metric,
         name: presentation.display_name,
         status: toMetricStatus(metric),
@@ -952,34 +1031,13 @@ function formatAge(value: string | null): string {
   return `${Math.round(minutes / 60)}h ago`;
 }
 
-function buildHistoryAxis(
-  histories: readonly (HostedMetricHistory | undefined)[],
-): string[] {
-  const timestamps = new Set<string>();
-  for (const history of histories) {
-    for (const point of history?.points ?? []) {
-      timestamps.add(point.bucket_start_at);
-    }
-  }
-  return [...timestamps].sort(compareIsoTimestamps);
+function toSparklinePoints(history: HostedMetricHistory, axis: readonly string[]) {
+  return alignHistoryPoints(metricHistoryPoints(history), axis);
 }
 
-function compareIsoTimestamps(a: string, b: string): number {
-  return new Date(a).getTime() - new Date(b).getTime();
-}
-
-function toSparklinePoints(
-  history: HostedMetricHistory,
-  axis: readonly string[],
-): HistoryPoint[] {
-  const valuesByTimestamp = new Map(
-    history.points.map((point) => [
-      point.bucket_start_at,
-      point.avg ?? point.max ?? point.min ?? null,
-    ]),
-  );
-  return axis.map((ts) => ({
-    ts,
-    value: valuesByTimestamp.get(ts) ?? null,
+function metricHistoryPoints(history: HostedMetricHistory) {
+  return history.points.map((point) => ({
+    ts: point.bucket_start_at,
+    value: point.avg ?? point.max ?? point.min ?? null,
   }));
 }

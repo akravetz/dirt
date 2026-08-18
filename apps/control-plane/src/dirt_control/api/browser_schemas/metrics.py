@@ -1,29 +1,12 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime
+from typing import Literal
 
 from dirt_control.api.browser_schemas.common import BrowserResponse
+from dirt_shared.metric_history import MetricHistoryBucket, MetricHistoryRange
 
-METRIC_HISTORY_RANGES: dict[str, tuple[str, timedelta]] = {
-    "1h": ("5m", timedelta(hours=1)),
-    "24h": ("1h", timedelta(hours=24)),
-    "7d": ("4h", timedelta(days=7)),
-    "30d": ("4h", timedelta(days=30)),
-    "90d": ("1d", timedelta(days=90)),
-}
-SOURCE_UNITS_BY_METRIC = {
-    "soil_moisture_pct": "%",
-    "substrate_temp_c": "degC",
-    "substrate_ec_us_cm": "us/cm",
-    "substrate_ph": "pH",
-}
-DISPLAY_UNITS_BY_METRIC = {
-    "soil_moisture_pct": "%",
-    "substrate_temp_c": "degF",
-    "substrate_ec_us_cm": "mS/cm",
-    "substrate_ph": "pH",
-}
-MetricStreamKey = tuple[str, str, str]
+MetricAccent = Literal["temp", "humidity", "vpd", "neutral", "reservoir", "moisture"]
 
 
 class CurrentMetricResponse(BrowserResponse):
@@ -38,7 +21,7 @@ class CurrentMetricResponse(BrowserResponse):
 
 
 class MetricHistoryPointResponse(BrowserResponse):
-    bucket: str
+    bucket: MetricHistoryBucket
     bucket_start_at: datetime
     bucket_end_at: datetime
     min: float | None
@@ -50,20 +33,15 @@ class MetricHistoryPointResponse(BrowserResponse):
 
 class MetricHistoryResponse(BrowserResponse):
     metric: str
-    range: str
+    range: MetricHistoryRange
     points: list[MetricHistoryPointResponse]
-
-
-class MetricPresentationRangeResponse(BrowserResponse):
-    range: str
-    bucket: str
 
 
 class MetricPresentationMetricResponse(BrowserResponse):
     metric: str
     display_name: str
     unit: str
-    accent: str
+    accent: MetricAccent
     value_precision: int
     y_min: float | None
     y_max: float | None
@@ -80,4 +58,3 @@ class MetricPresentationHistoryGroupResponse(BrowserResponse):
 class MetricPresentationResponse(BrowserResponse):
     current_metrics: list[MetricPresentationMetricResponse]
     history_groups: list[MetricPresentationHistoryGroupResponse]
-    supported_ranges: list[MetricPresentationRangeResponse]

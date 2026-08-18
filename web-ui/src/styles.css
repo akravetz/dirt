@@ -121,6 +121,11 @@
   --color-status-warn: var(--status-warn);
   --color-status-err: var(--status-err);
 
+  --color-plant-a: var(--plant-a);
+  --color-plant-b: var(--plant-b);
+  --color-plant-c: var(--plant-c);
+  --color-plant-d: var(--plant-d);
+
   --font-sans: "Inter", system-ui, sans-serif;
   --font-serif: "Fraunces", Georgia, serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;

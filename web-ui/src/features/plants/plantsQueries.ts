@@ -1,6 +1,7 @@
 import {
   type QueryClient,
   queryOptions,
+  useQuery,
   useQueryClient,
   useSuspenseQueries,
 } from "@tanstack/react-query";
@@ -9,7 +10,6 @@ import { invalidateSeedLotReads, type SeedLotSexTypeKey } from "@/shared/seedLot
 import type {
   PlantDetail,
   PlantListResult,
-  PlantMetricHistory,
   PlantRow,
   PlantSexKey,
   PlantSexTest,
@@ -22,6 +22,7 @@ const hostedApi = createHostedApiClient();
 const PLANT_DETAIL_API_PATH = "/api/breeding-logbook/plants/{plant_key}" as const;
 const PLANT_METRIC_HISTORY_API_PATH =
   "/api/breeding-logbook/plants/{plant_key}/metrics/history" as const;
+const PLANT_HISTORY_REFETCH_MS = 30_000;
 
 type HostedPlantsBootstrap =
   hostedComponents["schemas"]["BreedingLogbookBootstrapResponse"];
@@ -31,12 +32,21 @@ type HostedPlantsPlantDetail =
   hostedComponents["schemas"]["BreedingLogbookPlantDetailResponse"];
 type HostedPlantMetricHistory =
   hostedComponents["schemas"]["PlantMetricHistoryResponse"];
+type PlantMetricHistoryRange = HostedPlantMetricHistory["range"];
+export type PlantMetricHistoryBucket = HostedPlantMetricHistory["bucket"];
+export type PlantMetricHistoryStream = HostedPlantMetricHistory["streams"][number];
 type HostedPlantSexTest = hostedComponents["schemas"]["BreedingLogbookSexTestResponse"];
 
 const plantsQueryKeys = {
   bootstrap: ["plants", "bootstrap"],
   plants: ["plants", "list"],
   plantDetail: (plantKey: string) => ["plants", plantKey || "first", "detail"],
+  plantHistory: (plantKey: string, range: PlantMetricHistoryRange) => [
+    "plants",
+    plantKey,
+    "metrics",
+    range,
+  ],
 } as const;
 
 export function invalidatePlantsReads(
@@ -79,21 +89,23 @@ async function fetchPlantsPlantDetail(
   if (!resolvedPlantKey) {
     throw new Error("No plants are available to select");
   }
-  const [detailResponse, historyResponse] = await Promise.all([
-    hostedApi.GET(PLANT_DETAIL_API_PATH, {
-      params: { path: { plant_key: resolvedPlantKey } },
-    }),
-    hostedApi.GET(PLANT_METRIC_HISTORY_API_PATH, {
-      params: {
-        path: { plant_key: resolvedPlantKey },
-        query: { range: "24h" },
-      },
-    }),
-  ]);
-  return mapPlantDetail(
-    hostedData(detailResponse.data, PLANT_DETAIL_API_PATH),
-    hostedData(historyResponse.data, PLANT_METRIC_HISTORY_API_PATH),
-  );
+  const { data } = await hostedApi.GET(PLANT_DETAIL_API_PATH, {
+    params: { path: { plant_key: resolvedPlantKey } },
+  });
+  return mapPlantDetail(hostedData(data, PLANT_DETAIL_API_PATH));
+}
+
+async function fetchPlantMetricHistory(
+  plantKey: string,
+  range: PlantMetricHistoryRange,
+): Promise<HostedPlantMetricHistory> {
+  const { data } = await hostedApi.GET(PLANT_METRIC_HISTORY_API_PATH, {
+    params: {
+      path: { plant_key: plantKey },
+      query: { range },
+    },
+  });
+  return hostedData(data, PLANT_METRIC_HISTORY_API_PATH);
 }
 
 function plantsBootstrapOptions() {
@@ -120,9 +132,27 @@ function plantsPlantDetailOptions(plantKey: string, queryClient: QueryClient) {
   });
 }
 
-export function usePlantsQueries(plantKey: string) {
+export function plantMetricHistoryQueryOptions(
+  plantKey: string,
+  range: PlantMetricHistoryRange,
+) {
+  return queryOptions({
+    queryKey: plantsQueryKeys.plantHistory(plantKey, range),
+    queryFn: () => fetchPlantMetricHistory(plantKey, range),
+    refetchInterval: PLANT_HISTORY_REFETCH_MS,
+  });
+}
+
+export function usePlantsQueries(
+  plantKey: string,
+  historyRange: PlantMetricHistoryRange,
+) {
   const queryClient = useQueryClient();
-  return useSuspenseQueries({
+  const metricHistoryQuery = useQuery({
+    ...plantMetricHistoryQueryOptions(plantKey || "first", historyRange),
+    enabled: plantKey.length > 0,
+  });
+  const logbook = useSuspenseQueries({
     queries: [
       plantsBootstrapOptions(),
       plantsPlantsOptions(),
@@ -134,6 +164,12 @@ export function usePlantsQueries(plantKey: string) {
       detail: detail.data,
     }),
   });
+  return {
+    ...logbook,
+    metricHistory: metricHistoryQuery.data,
+    metricHistoryError: metricHistoryQuery.isError,
+    metricHistoryLoading: metricHistoryQuery.isLoading,
+  };
 }
 
 function hostedData<T>(data: T | undefined, path: string): T {
@@ -178,22 +214,13 @@ export function mapPlantList(response: HostedPlantsPlantList): PlantListResult {
   };
 }
 
-export function mapPlantDetail(
-  detail: HostedPlantsPlantDetail,
-  metricHistory: HostedPlantMetricHistory,
-): PlantDetail {
+export function mapPlantDetail(detail: HostedPlantsPlantDetail): PlantDetail {
   return {
     plant: mapPlantRow(detail.plant),
     lineage: {
       parents: detail.lineage.parents,
       offspring: detail.lineage.offspring,
     },
-    metrics: detail.metrics.map((metric) => ({
-      label: metric.label,
-      value: metric.value,
-      tone: metric.tone,
-    })),
-    metricHistory: metricHistory.streams.flatMap(mapMetricHistory),
     telemetry: detail.telemetry.map(mapTelemetryStream),
     wikiContent:
       detail.wiki_content === null
@@ -293,47 +320,6 @@ function mapPlantSexTest(sexTest: HostedPlantSexTest): PlantSexTest {
     isInconclusive: sexTest.is_inconclusive,
     notes: sexTest.notes,
   };
-}
-
-function mapMetricHistory(
-  stream: HostedPlantMetricHistory["streams"][number],
-): readonly PlantMetricHistory[] {
-  const key = metricHistoryKey(stream.metric);
-  if (key === null) return [];
-  const points = stream.points.flatMap((point) => {
-    const value = point.avg ?? point.max ?? point.min;
-    return value === null ? [] : [value];
-  });
-  return [
-    {
-      key,
-      label: stream.display_name,
-      value: formatHistoryValue(points.at(-1), stream.value_precision),
-      unit: stream.display_unit,
-      tone: "ok",
-      points,
-    },
-  ];
-}
-
-function metricHistoryKey(metric: string): PlantMetricHistory["key"] | null {
-  switch (metric) {
-    case "soil_moisture_pct":
-      return "moisture";
-    case "substrate_ec_us_cm":
-      return "ec";
-    case "substrate_ph":
-      return "ph";
-    case "substrate_temp_c":
-      return "temperature";
-    default:
-      return null;
-  }
-}
-
-function formatHistoryValue(value: number | undefined, precision: number): string {
-  if (value === undefined) return "";
-  return value.toFixed(precision);
 }
 
 function toPlantSexKey(key: string): PlantSexKey {

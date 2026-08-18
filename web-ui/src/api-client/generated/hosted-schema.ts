@@ -483,6 +483,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/metrics/presentation": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Metric Presentation */
+    get: operations["metric_presentation_api_metrics_presentation_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/sites": {
     parameters: {
       query?: never;
@@ -619,23 +636,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/tents/{source_tent_id}/metrics/presentation": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Metric Presentation */
-    get: operations["metric_presentation_api_tents__source_tent_id__metrics_presentation_get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   "/api/tents/{source_tent_id}/plants": {
     parameters: {
       query?: never;
@@ -653,32 +653,15 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/tents/{source_tent_id}/plants/{plant_id}": {
+  "/api/tents/{source_tent_id}/plants/metrics/history": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    /** Plant Detail */
-    get: operations["plant_detail_api_tents__source_tent_id__plants__plant_id__get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/tents/{source_tent_id}/plants/{plant_id}/metrics/history": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Plant Metric History */
-    get: operations["plant_metric_history_api_tents__source_tent_id__plants__plant_id__metrics_history_get"];
+    /** Plant Metric History Collection */
+    get: operations["plant_metric_history_collection_api_tents__source_tent_id__plants_metrics_history_get"];
     put?: never;
     post?: never;
     delete?: never;
@@ -2560,8 +2543,11 @@ export interface components {
     MetricHistoryPointResponse: {
       /** Avg */
       avg: number | null;
-      /** Bucket */
-      bucket: string;
+      /**
+       * Bucket
+       * @enum {string}
+       */
+      bucket: "5m" | "1h" | "4h" | "1d";
       /**
        * Bucket End At
        * Format: date-time
@@ -2587,8 +2573,11 @@ export interface components {
       metric: string;
       /** Points */
       points: components["schemas"]["MetricHistoryPointResponse"][];
-      /** Range */
-      range: string;
+      /**
+       * Range
+       * @enum {string}
+       */
+      range: "1h" | "24h" | "7d" | "30d" | "90d";
     };
     /** MetricPresentationHistoryGroupResponse */
     MetricPresentationHistoryGroupResponse: {
@@ -2603,8 +2592,11 @@ export interface components {
     };
     /** MetricPresentationMetricResponse */
     MetricPresentationMetricResponse: {
-      /** Accent */
-      accent: string;
+      /**
+       * Accent
+       * @enum {string}
+       */
+      accent: "temp" | "humidity" | "vpd" | "neutral" | "reservoir" | "moisture";
       /** Display Name */
       display_name: string;
       /** Display Order */
@@ -2620,116 +2612,12 @@ export interface components {
       /** Y Min */
       y_min: number | null;
     };
-    /** MetricPresentationRangeResponse */
-    MetricPresentationRangeResponse: {
-      /** Bucket */
-      bucket: string;
-      /** Range */
-      range: string;
-    };
     /** MetricPresentationResponse */
     MetricPresentationResponse: {
       /** Current Metrics */
       current_metrics: components["schemas"]["MetricPresentationMetricResponse"][];
       /** History Groups */
       history_groups: components["schemas"]["MetricPresentationHistoryGroupResponse"][];
-      /** Supported Ranges */
-      supported_ranges: components["schemas"]["MetricPresentationRangeResponse"][];
-    };
-    /** PlantCurrentLocationResponse */
-    PlantCurrentLocationResponse: {
-      /** Current Tent Id */
-      current_tent_id: number;
-      /** Current Tent Name */
-      current_tent_name: string;
-      /** End At */
-      end_at: string | null;
-      /** Grid Position */
-      grid_position: string | null;
-      /** Id */
-      id: number;
-      /**
-       * Start At
-       * Format: date-time
-       */
-      start_at: string;
-    };
-    /** PlantDetailResponse */
-    PlantDetailResponse: {
-      /** Culled At */
-      culled_at: string | null;
-      /** Culled Reason */
-      culled_reason: string | null;
-      current_location: components["schemas"]["PlantCurrentLocationResponse"];
-      /** Current Tent Id */
-      current_tent_id: number;
-      /** Current Tent Name */
-      current_tent_name: string;
-      /** Events */
-      events: components["schemas"]["PlantEventResponse"][];
-      /** Flower Started At */
-      flower_started_at: string | null;
-      /** Germinated At */
-      germinated_at: string | null;
-      /** Grid Position */
-      grid_position: string | null;
-      /** Harvested At */
-      harvested_at: string | null;
-      /** Id */
-      id: number;
-      /** Is Active */
-      is_active: boolean;
-      /** Key */
-      key: string;
-      line: components["schemas"]["PlantLineResponse"] | null;
-      /** Line Source Id */
-      line_source_id: number;
-      /** Name */
-      name: string;
-      /** Notes */
-      notes: components["schemas"]["PlantNoteResponse"][];
-      /** Rooted At */
-      rooted_at: string | null;
-      /** Selected For Breeding At */
-      selected_for_breeding_at: string | null;
-      /** Selected For Breeding Reason */
-      selected_for_breeding_reason: string | null;
-      /**
-       * Sex Key
-       * @enum {string}
-       */
-      sex_key: "unknown" | "male" | "female" | "herm" | "reversed";
-      /** Site Id */
-      site_id: string;
-      /** Taken At */
-      taken_at: string | null;
-      /** Telemetry */
-      telemetry: components["schemas"]["PlantMetricStreamResponse"][];
-      /** Telemetry Stream Count */
-      telemetry_stream_count: number;
-      /** Veg Started At */
-      veg_started_at: string | null;
-      wiki_content: components["schemas"]["PlantWikiContentResponse"] | null;
-    };
-    /** PlantEventResponse */
-    PlantEventResponse: {
-      /** Id */
-      id: number;
-      /** Kinds */
-      kinds: string[];
-      /** Metadata */
-      metadata: {
-        [key: string]: unknown;
-      };
-      /** Notes */
-      notes: string | null;
-      /**
-       * Occurred At
-       * Format: date-time
-       */
-      occurred_at: string;
-      /** Reason */
-      reason: string | null;
     };
     /** PlantLineResponse */
     PlantLineResponse: {
@@ -2746,52 +2634,66 @@ export interface components {
       /** Strain */
       strain: string;
     };
+    /** PlantMetricHistoryCollectionResponse */
+    PlantMetricHistoryCollectionResponse: {
+      /**
+       * Bucket
+       * @enum {string}
+       */
+      bucket: "5m" | "1h" | "4h" | "1d";
+      /** Plants */
+      plants: components["schemas"]["PlantMetricHistoryPlantResponse"][];
+      /**
+       * Range
+       * @enum {string}
+       */
+      range: "1h" | "24h" | "7d" | "30d" | "90d";
+    };
+    /** PlantMetricHistoryPlantResponse */
+    PlantMetricHistoryPlantResponse: {
+      /** Grid Position */
+      grid_position: string | null;
+      /** Id */
+      id: number;
+      /** Key */
+      key: string;
+      /** Name */
+      name: string;
+      /** Streams */
+      streams: components["schemas"]["PlantMetricHistoryStreamResponse"][];
+    };
     /** PlantMetricHistoryPointResponse */
     PlantMetricHistoryPointResponse: {
-      /** Avg */
-      avg: number | null;
-      /** Bucket */
-      bucket: string;
       /**
-       * Bucket End At
+       * Ts
        * Format: date-time
        */
-      bucket_end_at: string;
-      /**
-       * Bucket Start At
-       * Format: date-time
-       */
-      bucket_start_at: string;
-      /** Display Unit */
-      display_unit: string;
-      /** Max */
-      max: number | null;
-      /** Min */
-      min: number | null;
-      /** Sample Count */
-      sample_count: number;
-      /** Source Avg */
-      source_avg: number | null;
-      /** Source Max */
-      source_max: number | null;
-      /** Source Min */
-      source_min: number | null;
-      /** Source Unit */
-      source_unit: string | null;
+      ts: string;
+      /** Value */
+      value: number | null;
     };
     /** PlantMetricHistoryResponse */
     PlantMetricHistoryResponse: {
-      /** Bucket */
-      bucket: string;
-      /** Range */
-      range: string;
+      /**
+       * Bucket
+       * @enum {string}
+       */
+      bucket: "5m" | "1h" | "4h" | "1d";
+      /**
+       * Range
+       * @enum {string}
+       */
+      range: "1h" | "24h" | "7d" | "30d" | "90d";
       /** Streams */
       streams: components["schemas"]["PlantMetricHistoryStreamResponse"][];
     };
     /** PlantMetricHistoryStreamResponse */
     PlantMetricHistoryStreamResponse: {
-      /** Accent */
-      accent: string;
+      /**
+       * Accent
+       * @enum {string}
+       */
+      accent: "temp" | "humidity" | "vpd" | "neutral" | "reservoir" | "moisture";
       /** Capability Id */
       capability_id: string;
       /** Device Id */
@@ -2844,8 +2746,11 @@ export interface components {
     };
     /** PlantMetricStreamResponse */
     PlantMetricStreamResponse: {
-      /** Accent */
-      accent: string;
+      /**
+       * Accent
+       * @enum {string}
+       */
+      accent: "temp" | "humidity" | "vpd" | "neutral" | "reservoir" | "moisture";
       /** Capability Id */
       capability_id: string;
       /** Device Id */
@@ -2869,20 +2774,6 @@ export interface components {
       y_max: number | null;
       /** Y Min */
       y_min: number | null;
-    };
-    /** PlantNoteResponse */
-    PlantNoteResponse: {
-      /** Body */
-      body: string;
-      /** Created By */
-      created_by: string | null;
-      /** Id */
-      id: number;
-      /**
-       * Observed At
-       * Format: date-time
-       */
-      observed_at: string;
     };
     /** PlantSummaryResponse */
     PlantSummaryResponse: {
@@ -3005,8 +2896,11 @@ export interface components {
     RollupItem: {
       /** Avg Value */
       avg_value?: number | null;
-      /** Bucket */
-      bucket: string;
+      /**
+       * Bucket
+       * @enum {string}
+       */
+      bucket: "5m" | "1h" | "4h" | "1d";
       /**
        * Bucket End At
        * Format: date-time
@@ -3464,7 +3358,7 @@ export interface operations {
   breeding_logbook_plant_metric_history_api_breeding_logbook_plants__plant_key__metrics_history_get: {
     parameters: {
       query?: {
-        range?: string;
+        range?: "1h" | "24h" | "7d" | "30d" | "90d";
       };
       header?: never;
       path: {
@@ -4163,6 +4057,26 @@ export interface operations {
       };
     };
   };
+  metric_presentation_api_metrics_presentation_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MetricPresentationResponse"];
+        };
+      };
+    };
+  };
   sites_api_sites_get: {
     parameters: {
       query?: never;
@@ -4362,9 +4276,7 @@ export interface operations {
     parameters: {
       query: {
         metric: string;
-        device_id?: string | null;
-        capability_id?: string | null;
-        range?: string;
+        range?: "1h" | "24h" | "7d" | "30d" | "90d";
       };
       header?: never;
       path: {
@@ -4381,37 +4293,6 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["MetricHistoryResponse"];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  metric_presentation_api_tents__source_tent_id__metrics_presentation_get: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        source_tent_id: number;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["MetricPresentationResponse"];
         };
       };
       /** @description Validation Error */
@@ -4456,47 +4337,14 @@ export interface operations {
       };
     };
   };
-  plant_detail_api_tents__source_tent_id__plants__plant_id__get: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        source_tent_id: number;
-        plant_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["PlantDetailResponse"];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  plant_metric_history_api_tents__source_tent_id__plants__plant_id__metrics_history_get: {
+  plant_metric_history_collection_api_tents__source_tent_id__plants_metrics_history_get: {
     parameters: {
       query?: {
-        range?: string;
+        range?: "1h" | "24h" | "7d" | "30d" | "90d";
       };
       header?: never;
       path: {
         source_tent_id: number;
-        plant_id: string;
       };
       cookie?: never;
     };
@@ -4508,7 +4356,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["PlantMetricHistoryResponse"];
+          "application/json": components["schemas"]["PlantMetricHistoryCollectionResponse"];
         };
       };
       /** @description Validation Error */

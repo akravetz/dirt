@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import datetime
+from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from dirt_control.api.browser_schemas.metrics import (
     CurrentMetricResponse,
@@ -22,6 +23,7 @@ from dirt_control.services.browser_metrics import (
     metric_presentation as metric_presentation_service,
 )
 from dirt_control.settings import CloudSettings
+from dirt_shared.metric_history import MetricHistoryRange
 
 router = APIRouter()
 
@@ -42,15 +44,13 @@ async def current_metrics(
 
 
 @router.get(
-    "/tents/{source_tent_id}/metrics/presentation",
+    "/metrics/presentation",
     response_model=MetricPresentationResponse,
 )
 async def metric_presentation(
-    source_tent_id: int,
     _: str = Depends(require_browser_user),
     session=Depends(get_session),
 ) -> MetricPresentationResponse:
-    _ = source_tent_id
     return await metric_presentation_service(session)
 
 
@@ -60,9 +60,7 @@ async def metric_presentation(
 async def metric_history(  # noqa: PLR0913
     source_tent_id: int,
     metric: str,
-    device_id: str | None = None,
-    capability_id: str | None = None,
-    range: str = "24h",
+    range_key: Annotated[MetricHistoryRange, Query(alias="range")] = "24h",
     _: str = Depends(require_browser_user),
     settings: CloudSettings = Depends(get_settings),
     session=Depends(get_session),
@@ -73,8 +71,6 @@ async def metric_history(  # noqa: PLR0913
         site_id=settings.default_site_id,
         source_tent_id=source_tent_id,
         metric=metric,
-        range_key=range,
-        device_id=device_id,
-        capability_id=capability_id,
+        range_key=range_key,
         now=clock(),
     )

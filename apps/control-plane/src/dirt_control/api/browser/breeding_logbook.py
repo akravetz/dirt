@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import datetime
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 
 from dirt_control.api.browser_schemas.breeding_logbook import (
     BreedingBulkCreateSexTestsRequest,
@@ -52,6 +53,7 @@ from dirt_control.services.breeding_logbook import (
     update_sex_test_command,
 )
 from dirt_control.settings import CloudSettings
+from dirt_shared.metric_history import MetricHistoryRange
 
 router = APIRouter()
 
@@ -127,7 +129,7 @@ async def breeding_logbook_seed_lot_detail(
 )
 async def breeding_logbook_plant_metric_history(
     plant_key: str,
-    range: str = "24h",
+    range_key: Annotated[MetricHistoryRange, Query(alias="range")] = "24h",
     _: str = Depends(require_browser_user),
     settings: CloudSettings = Depends(get_settings),
     session=Depends(get_session),
@@ -137,7 +139,7 @@ async def breeding_logbook_plant_metric_history(
         session,
         site_id=settings.default_site_id,
         plant_key=plant_key,
-        range_key=range,
+        range_key=range_key,
         now=clock(),
     )
 

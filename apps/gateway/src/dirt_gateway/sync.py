@@ -31,6 +31,7 @@ from dirt_shared.cloud_contract import (
     WikiProjectionRequest,
 )
 from dirt_shared.config import CloudGatewayConfig
+from dirt_shared.metric_history import METRIC_ROLLUP_SPECS, MetricHistoryBucket
 from dirt_shared.models import CloudOutbox
 from dirt_shared.observability import log_event
 
@@ -59,14 +60,12 @@ class SyncResult:
 @dataclass(frozen=True)
 class _Projection:
     payload: ProjectionPayload
-    rollup_bucket_names: frozenset[str] = frozenset()
+    rollup_bucket_names: frozenset[MetricHistoryBucket] = frozenset()
 
 
-ROLLUP_SYNC_INTERVALS: dict[str, timedelta] = {
-    "5m": timedelta(minutes=5),
-    "1h": timedelta(hours=1),
-    "4h": timedelta(hours=4),
-    "1d": timedelta(days=1),
+ROLLUP_SYNC_INTERVALS: dict[MetricHistoryBucket, timedelta] = {
+    bucket: timedelta(seconds=bucket_seconds)
+    for bucket, _, bucket_seconds in METRIC_ROLLUP_SPECS
 }
 ROLLUP_CHUNK_SIZE = 500
 ROLLUP_DELIVERY_LIMIT = 20
@@ -213,8 +212,10 @@ class GatewaySyncService:
                 projections["asset_upload"] = _Projection(asset)
         return projections
 
-    async def _due_rollup_buckets(self, now: datetime) -> frozenset[str]:
-        due: set[str] = set()
+    async def _due_rollup_buckets(
+        self, now: datetime
+    ) -> frozenset[MetricHistoryBucket]:
+        due: set[MetricHistoryBucket] = set()
         for bucket, interval in ROLLUP_SYNC_INTERVALS.items():
             cursor = await self._outbox.get_cursor(_rollup_cursor_key(bucket))
             last_enqueued_at = _cursor_datetime(cursor, "last_enqueued_at")
@@ -260,17 +261,6 @@ class GatewaySyncService:
                         event_type=event_type,
                         count=superseded,
                     )
-                if event_type == "rollups":
-                    for bucket in projection.rollup_bucket_names:
-                        await self._outbox.set_cursor(
-                            cursor_key=_rollup_cursor_key(bucket),
-                            cursor_value={
-                                "bucket": bucket,
-                                "last_enqueued_at": now,
-                                "idempotency_key": key,
-                            },
-                            now=now,
-                        )
             if result.created:
                 created += 1
                 log_event(
@@ -577,7 +567,7 @@ def _row_id(row: CloudOutbox) -> int:
     return row.id
 
 
-def _rollup_cursor_key(bucket: str) -> str:
+def _rollup_cursor_key(bucket: MetricHistoryBucket) -> str:
     return f"rollups:last_enqueued:{bucket}"
 
 
